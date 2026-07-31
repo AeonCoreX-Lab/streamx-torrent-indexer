@@ -1,38 +1,45 @@
 {
-  "id": "kat_ws",
-  "enabled": true,
   "display_name": "KickassTorrents-WS",
+  "enabled": true,
+  "id": "kat_ws",
   "kind": "html",
   "mirrors": [
     "https://kickass.ws",
-    "https://kickasstorrents.bz"
+    "https://kickasstorrents.bz",
+    "https://kkickass.com",
+    "https://kkat.net",
+    "https://kick4ss.com",
+    "https://kickasst.net",
+    "https://kickasstorrents.id",
+    "https://thekat.cc",
+    "https://kattracker.com"
   ],
-  "search_path": "/usearch/{query}/?field=time_add&sorder=desc",
-  "pages": 1,
-  "selectors": {
-    "row": "table.data tr[id]:has(a[data-download])",
-    "title": "a[class=\"cellMainLink\"]",
-    "title_attr": "text",
-    "magnet_location": "listing",
-    "magnet": "td:nth-child(1) > div > a[data-download]",
-    "magnet_attr": "href",
-    "magnet_querystring_param": "url",
-    "size": "td:nth-child(2)",
-    "seeds": "td:nth-child(4)",
-    "seeds_index": 0,
-    "peers": "td:nth-child(5)",
-    "peers_index": 0
+  "origin": {
+    "jackett_id": "kickasstorrents-ws",
+    "kind": "jackett",
+    "last_verified": "2026-07-31T04:28:32Z"
   },
+  "pages": 1,
   "request": {
+    "delay_ms": 0,
     "headers": {
       "Accept": "text/html,application/xhtml+xml",
       "Accept-Language": "en-US,en;q=0.9"
-    },
-    "delay_ms": 0
+    }
   },
-  "origin": {
-    "kind": "jackett",
-    "jackett_id": "kickasstorrents-ws",
-    "last_verified": null
+  "search_path": "/usearch/{query}/?field=time_add&sorder=desc",
+  "selectors": {
+    "magnet": "td:nth-child(1) > div > a[data-download]",
+    "magnet_attr": "href",
+    "magnet_location": "listing",
+    "magnet_querystring_param": "url",
+    "peers": "td:nth-child(5)",
+    "peers_index": 0,
+    "row": "table.data tr[id]:has(a[data-download])",
+    "seeds": "td:nth-child(4)",
+    "seeds_index": 0,
+    "size": "td:nth-child(2)",
+    "title": "a[class=\"cellMainLink\"]",
+    "title_attr": "text"
   }
 }

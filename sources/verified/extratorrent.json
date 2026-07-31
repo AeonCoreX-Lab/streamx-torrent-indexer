@@ -1,37 +1,40 @@
 {
-  "id": "extratorrent",
-  "enabled": true,
   "display_name": "ExtraTorrent",
+  "enabled": true,
+  "id": "extratorrent",
   "kind": "html",
   "mirrors": [
-    "https://extratorrent.st"
+    "https://extratorrent.st",
+    "https://extratorrent.ninjaproxy1.com",
+    "https://extratorrent.proxyninja.org",
+    "https://extratorrent.proxyninja.net"
   ],
-  "search_path": "/search/?srt=added&order=desc&search={query}&new=1&x=0&y=0",
-  "pages": 1,
-  "selectors": {
-    "row": "tr[class^=\"tl\"]:has(a[href^=\"magnet:?xt=\"])",
-    "title": "a[href^=\"/torrent/\"]",
-    "title_attr": "text",
-    "magnet_location": "listing",
-    "magnet": "a[href^=\"magnet:?xt=\"]",
-    "magnet_attr": "href",
-    "category": "span.c_tor",
-    "size": "td:nth-last-of-type(4)",
-    "seeds": "td.sy, td.sn",
-    "seeds_index": 0,
-    "peers": "td.ly, td.ln",
-    "peers_index": 0
+  "origin": {
+    "jackett_id": "extratorrent-st",
+    "kind": "jackett",
+    "last_verified": "2026-07-31T04:28:32Z"
   },
+  "pages": 1,
   "request": {
+    "delay_ms": 0,
     "headers": {
       "Accept": "text/html,application/xhtml+xml",
       "Accept-Language": "en-US,en;q=0.9"
-    },
-    "delay_ms": 0
+    }
   },
-  "origin": {
-    "kind": "jackett",
-    "jackett_id": "extratorrent-st",
-    "last_verified": null
+  "search_path": "/search/?srt=added&order=desc&search={query}&new=1&x=0&y=0",
+  "selectors": {
+    "category": "span.c_tor",
+    "magnet": "a[href^=\"magnet:?xt=\"]",
+    "magnet_attr": "href",
+    "magnet_location": "listing",
+    "peers": "td.ly, td.ln",
+    "peers_index": 0,
+    "row": "tr[class^=\"tl\"]:has(a[href^=\"magnet:?xt=\"])",
+    "seeds": "td.sy, td.sn",
+    "seeds_index": 0,
+    "size": "td:nth-last-of-type(4)",
+    "title": "a[href^=\"/torrent/\"]",
+    "title_attr": "text"
   }
 }
