@@ -1,0 +1,100 @@
+name: Validate sources
+
+# Runs on every PR/push that touches a source file — schema-only (no
+# --live), fast, no third-party network dependency beyond what cargo
+# itself needs. This is what a community contributor's PR has to pass
+# before it can be merged, even into sources/community/.
+on:
+  pull_request:
+    paths:
+      - "sources/**"
+      - "schema/**"
+      - "crate/src/schema.rs"
+  push:
+    branches: [main]
+    paths:
+      - "sources/**"
+      - "schema/**"
+      - "crate/src/schema.rs"
+  workflow_dispatch: {}
+
+jobs:
+  schema-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            crate
+            tools/validator
+
+      - name: Build validator
+        run: cargo build --release -p streamx-indexer-validator
+        working-directory: tools/validator
+
+      - name: Schema validation (no network)
+        run: |
+          ./target/release/validator check --root ../..
+        working-directory: tools/validator
+
+      - name: Comment result on PR
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "Schema validation failed — see the **schema-check** job log for exactly which file and field. Common fixes: `id` must match the filename, `mirrors` can't be empty, and `magnet_location: \"detail\"` requires `detail_link` + `detail_magnet_selector`."
+            })
+
+  # Live smoke-test only for files the PR actually touches, since
+  # hitting every site on every PR would be slow and noisy for
+  # unrelated contributions (e.g. a docs-only PR that happens to also
+  # touch schema/README wording).
+  live-check-changed-sources:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed source ids
+        id: changed
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          IDS=$(git diff --name-only "$BASE" "$HEAD" -- 'sources/verified/*.json' 'sources/community/*.json' \
+                | xargs -n1 basename 2>/dev/null | sed 's/\.json$//' | paste -sd, -)
+          echo "ids=$IDS" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust
+        if: steps.changed.outputs.ids != ''
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        if: steps.changed.outputs.ids != ''
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            crate
+            tools/validator
+
+      - name: Build validator
+        if: steps.changed.outputs.ids != ''
+        run: cargo build --release -p streamx-indexer-validator
+        working-directory: tools/validator
+
+      - name: Live selector smoke-test (changed sources only)
+        if: steps.changed.outputs.ids != ''
+        run: |
+          ./target/release/validator check --root ../.. --live --only "${{ steps.changed.outputs.ids }}"
+        working-directory: tools/validator

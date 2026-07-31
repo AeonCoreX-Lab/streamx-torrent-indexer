@@ -1,0 +1,10 @@
+/target
+# Cargo.lock IS committed (not ignored) — this workspace includes
+# binaries (validator, jackett-sync, cli), and per Cargo's own
+# guidance, binary crates should commit their lockfile for
+# reproducible CI builds. Only pure library crates conventionally
+# omit it.
+dist/*.json
+!dist/.gitkeep
+.DS_Store
+*.swp

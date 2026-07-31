@@ -1,0 +1,91 @@
+name: Jackett sync
+
+# Daily scheduled job: fetches every source's upstream Jackett YAML,
+# diffs live domains against our sources/*.json, and opens a PR only if
+# something actually changed. This is the "analyzes Jackett and updates
+# itself" half of the system — see tools/jackett-sync/src/main.rs for
+# the full logic and docs/CONTRIBUTING.md for how origin.jackett_id
+# gets set on a new source in the first place.
+on:
+  schedule:
+    - cron: "17 4 * * *" # 04:17 UTC daily — arbitrary offset to avoid
+                          # everyone's cron jobs firing exactly on the hour
+  workflow_dispatch: {}   # manual "run now" button in the Actions tab
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            crate
+            tools/jackett-sync
+
+      - name: Build jackett-sync
+        run: cargo build --release -p streamx-jackett-sync
+        working-directory: tools/jackett-sync
+
+      - name: Run sync (write mode)
+        run: ./target/release/jackett-sync --root ../.. --write
+        working-directory: tools/jackett-sync
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet -- sources/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Validate the rewritten files before opening a PR — a domain
+      # rewrite should never itself produce an invalid file, but this
+      # is a cheap belt-and-suspenders check since the PR is unattended.
+      - name: Build validator
+        if: steps.diff.outputs.changed == 'true'
+        run: cargo build --release -p streamx-indexer-validator
+        working-directory: tools/validator
+
+      - name: Validate rewritten sources
+        if: steps.diff.outputs.changed == 'true'
+        run: ./target/release/validator check --root ../..
+        working-directory: tools/validator
+
+      - name: Open PR with the domain updates
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(sources): sync mirrors with upstream Jackett"
+          title: "Automated Jackett domain sync"
+          body: |
+            Opened automatically by `.github/workflows/jackett-sync.yml`.
+
+            One or more sources had a `mirrors[]` list that no longer
+            matched their upstream Jackett Cardigann definition's
+            `links:`. This PR updates them to match.
+
+            If a source is flagged `origin.upstream_removed: true`
+            instead of having its mirrors changed, that means Jackett
+            has deleted the indexer definition entirely (see the run
+            log) — decide manually whether to keep maintaining it
+            independently or retire it; this bot never deletes a
+            source file on its own.
+
+            `validator check` (schema-only) was run against the
+            rewritten files before this PR was opened.
+          branch: automated/jackett-sync
+          delete-branch: true
+          labels: |
+            automated
+            jackett-sync

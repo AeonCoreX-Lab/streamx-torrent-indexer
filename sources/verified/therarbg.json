@@ -1,0 +1,33 @@
+{
+  "id": "therarbg",
+  "enabled": true,
+  "display_name": "TheRARBG",
+  "kind": "json",
+  "mirrors": [
+    "https://therarbg.to",
+    "https://therarbg.com"
+  ],
+  "search_path": "/get-posts/order:-se:category:Movies:keywords:{query}:paginate_by:50:format:json/",
+  "imdb_path": "/get-posts/order:-se:category:Movies:keywords:{imdb_id}:paginate_by:50:format:json/",
+  "json_fields": {
+    "results_array": "results",
+    "title": "n",
+    "infohash": "h",
+    "infohash_is_full_magnet": false,
+    "size": "s",
+    "seeds": "se",
+    "peers": "le",
+    "category": "c"
+  },
+  "request": {
+    "headers": {
+      "Accept": "application/json"
+    },
+    "delay_ms": 0
+  },
+  "origin": {
+    "kind": "jackett",
+    "jackett_id": "therarbg",
+    "last_verified": null
+  }
+}

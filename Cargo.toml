@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = [
+    "crate",
+    "tools/validator",
+    "tools/jackett-sync",
+    "tools/cli",
+]
+
+# Individual crates keep their own [package] metadata (see each
+# Cargo.toml) — this root file exists purely so `cargo build`/`cargo
+# test` from the repo root builds everything at once, and so all four
+# crates share one Cargo.lock and target/ dir instead of four.

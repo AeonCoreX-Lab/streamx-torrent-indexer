@@ -1,0 +1,43 @@
+{
+  "id": "x1337x",
+  "enabled": true,
+  "display_name": "1337x",
+  "kind": "html",
+  "mirrors": [
+    "https://1337x.to",
+    "https://1337x.st",
+    "https://x1337x.ws"
+  ],
+  "search_path": "/search/{query}/{page}/",
+  "pages": 2,
+  "selectors": {
+    "row": "tr:has(a[href^=\"/torrent/\"])",
+    "title": "td.coll-1 a:last-of-type[href^=\"/torrent/\"]",
+    "title_attr": "text",
+    "title_fallback_href_selector": "td.coll-1 a:last-of-type[href^=\"/torrent/\"]",
+    "title_fallback_href_segment": 3,
+    "magnet_location": "detail",
+    "detail_link": "td.coll-1 a:last-of-type[href^=\"/torrent/\"]",
+    "detail_link_attr": "href",
+    "detail_magnet_selector": "a[href^=\"magnet:\"]",
+    "detail_magnet_selector_fallback": "ul li a[href^=\"magnet:?xt=\"]",
+    "size": "td.coll-4",
+    "seeds": "td.coll-2",
+    "seeds_index": 0,
+    "peers": "td.coll-3",
+    "peers_index": 0
+  },
+  "request": {
+    "headers": {
+      "Accept": "text/html,application/xhtml+xml",
+      "Accept-Language": "en-US,en;q=0.9"
+    },
+    "delay_ms": 1200,
+    "min_seeds_for_detail_fetch": 1
+  },
+  "origin": {
+    "kind": "jackett",
+    "jackett_id": "1337x",
+    "last_verified": null
+  }
+}

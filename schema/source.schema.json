@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/AeonCoreX-Lab/streamx-torrent-indexer/main/schema/source.schema.json",
+  "title": "StreamX Torrent Indexer — Source Definition",
+  "description": "Schema for a single site under sources/verified/ or sources/community/. Mirrors crate/src/schema.rs::SiteConfig exactly — see tools/validator --emit-json-schema to regenerate this file if the two ever drift.",
+  "type": "object",
+  "required": ["id", "display_name", "kind", "mirrors", "search_path"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$",
+      "description": "Unique slug. Must match the filename (sources/*/<id>.json, no extension) and, if ported from Jackett, should match Jackett's own indexer id where practical."
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["html", "json"]
+    },
+    "mirrors": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" },
+      "minItems": 1
+    },
+    "search_path": {
+      "type": "string",
+      "description": "Path appended to a mirror, with {query} substituted, e.g. \"/search/{query}/1/\"."
+    },
+    "imdb_path": { "type": ["string", "null"] },
+    "pages": { "type": "integer", "minimum": 1, "default": 1 },
+    "selectors": { "$ref": "#/definitions/htmlSelectors" },
+    "json_fields": { "$ref": "#/definitions/jsonFields" },
+    "request": { "$ref": "#/definitions/requestConfig" },
+    "origin": { "$ref": "#/definitions/sourceOrigin" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "html" } } },
+      "then": { "required": ["selectors"] }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "json" } } },
+      "then": { "required": ["json_fields"] }
+    }
+  ],
+  "definitions": {
+    "sourceOrigin": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["jackett", "manual"] },
+        "jackett_id": {
+          "type": ["string", "null"],
+          "description": "Required (non-null) when kind is 'jackett'. This is the join key jackett-sync uses to auto-detect upstream domain changes."
+        },
+        "last_verified": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Set automatically by tools/jackett-sync — do not set by hand in a contribution PR."
+        },
+        "upstream_removed": {
+          "type": "boolean",
+          "default": false,
+          "description": "Set automatically by tools/jackett-sync when Jackett has deleted the upstream YAML this was ported from. Do not set by hand."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "jackett" } } },
+          "then": { "required": ["jackett_id"] }
+        }
+      ]
+    },
+    "htmlSelectors": {
+      "type": "object",
+      "required": ["row", "title", "size", "seeds", "peers"],
+      "additionalProperties": false,
+      "properties": {
+        "row": { "type": "string" },
+        "title": { "type": "string" },
+        "title_attr": { "type": "string", "default": "text" },
+        "magnet": { "type": ["string", "null"] },
+        "magnet_attr": { "type": ["string", "null"] },
+        "magnet_querystring_param": { "type": ["string", "null"] },
+        "magnet_location": { "type": "string", "enum": ["listing", "detail"], "default": "listing" },
+        "detail_link": { "type": ["string", "null"] },
+        "detail_link_attr": { "type": ["string", "null"] },
+        "detail_magnet_selector": { "type": ["string", "null"] },
+        "detail_magnet_selector_fallback": { "type": ["string", "null"] },
+        "size": { "type": "string" },
+        "seeds": { "type": "string" },
+        "seeds_index": { "type": "integer", "minimum": 0, "default": 0 },
+        "peers": { "type": "string" },
+        "peers_index": { "type": "integer", "minimum": 0, "default": 0 },
+        "title_fallback_href_selector": { "type": ["string", "null"] },
+        "title_fallback_href_segment": { "type": "integer", "minimum": 0, "default": 3 },
+        "category": { "type": ["string", "null"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "magnet_location": { "const": "detail" } } },
+          "then": { "required": ["detail_link", "detail_magnet_selector"] }
+        },
+        {
+          "if": { "properties": { "magnet_location": { "const": "listing" } } },
+          "then": { "required": ["magnet"] }
+        }
+      ]
+    },
+    "jsonFields": {
+      "type": "object",
+      "required": ["title", "infohash", "size", "seeds", "peers"],
+      "additionalProperties": false,
+      "properties": {
+        "results_array": { "type": "string", "default": "" },
+        "title": { "type": "string" },
+        "infohash": { "type": "string" },
+        "infohash_is_full_magnet": { "type": "boolean", "default": false },
+        "size": { "type": "string" },
+        "seeds": { "type": "string" },
+        "peers": { "type": "string" },
+        "category": { "type": ["string", "null"] },
+        "imdb": { "type": ["string", "null"] },
+        "apply_tpb_query_cleanup": { "type": "boolean", "default": false }
+      }
+    },
+    "requestConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "delay_ms": { "type": "integer", "minimum": 0, "default": 0 },
+        "min_seeds_for_detail_fetch": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "kat",
+  "enabled": true,
+  "display_name": "KickassTorrents",
+  "kind": "html",
+  "mirrors": [
+    "https://kickass.torrentbay.st"
+  ],
+  "search_path": "/search/?q={query}",
+  "pages": 1,
+  "selectors": {
+    "row": "table.data > tbody > tr:has(a[href^=\"magnet:?xt=\"])",
+    "title": "a.cellMainLink",
+    "title_attr": "text",
+    "magnet_location": "listing",
+    "magnet": "a[href^=\"magnet:?xt=\"]",
+    "magnet_attr": "href",
+    "size": "td:nth-child(2)",
+    "seeds": "td:nth-child(5)",
+    "seeds_index": 0,
+    "peers": "td:nth-child(6)",
+    "peers_index": 0
+  },
+  "request": {
+    "headers": {
+      "Accept": "text/html,application/xhtml+xml",
+      "Accept-Language": "en-US,en;q=0.9"
+    },
+    "delay_ms": 1500
+  },
+  "origin": {
+    "kind": "jackett",
+    "jackett_id": "kickasstorrents-to",
+    "last_verified": null
+  }
+}

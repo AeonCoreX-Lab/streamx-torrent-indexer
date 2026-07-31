@@ -1,0 +1,37 @@
+{
+  "id": "extratorrent",
+  "enabled": true,
+  "display_name": "ExtraTorrent",
+  "kind": "html",
+  "mirrors": [
+    "https://extratorrent.st"
+  ],
+  "search_path": "/search/?srt=added&order=desc&search={query}&new=1&x=0&y=0",
+  "pages": 1,
+  "selectors": {
+    "row": "tr[class^=\"tl\"]:has(a[href^=\"magnet:?xt=\"])",
+    "title": "a[href^=\"/torrent/\"]",
+    "title_attr": "text",
+    "magnet_location": "listing",
+    "magnet": "a[href^=\"magnet:?xt=\"]",
+    "magnet_attr": "href",
+    "category": "span.c_tor",
+    "size": "td:nth-last-of-type(4)",
+    "seeds": "td.sy, td.sn",
+    "seeds_index": 0,
+    "peers": "td.ly, td.ln",
+    "peers_index": 0
+  },
+  "request": {
+    "headers": {
+      "Accept": "text/html,application/xhtml+xml",
+      "Accept-Language": "en-US,en;q=0.9"
+    },
+    "delay_ms": 0
+  },
+  "origin": {
+    "kind": "jackett",
+    "jackett_id": "extratorrent-st",
+    "last_verified": null
+  }
+}

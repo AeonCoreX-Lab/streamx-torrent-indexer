@@ -1,0 +1,22 @@
+{
+  "torrentsome": {
+    "enabled": true,
+    "mirrors": ["https://torrentsome256.com"],
+    "origin": { "kind": "jackett", "jackett_id": "torrentsome", "last_verified": null }
+  },
+  "torrenttip": {
+    "enabled": true,
+    "mirrors": ["https://torrenttip237.top"],
+    "origin": { "kind": "jackett", "jackett_id": "torrenttip", "last_verified": null }
+  },
+  "nyaa": {
+    "enabled": true,
+    "mirrors": ["https://nyaa.si", "https://nyaa.land"],
+    "origin": { "kind": "jackett", "jackett_id": "nyaasi", "last_verified": null }
+  },
+  "tokyotosho": {
+    "enabled": true,
+    "mirrors": ["https://www.tokyotosho.info", "https://www.tokyotosho.se"],
+    "origin": { "kind": "jackett", "jackett_id": "tokyotosho", "last_verified": null }
+  }
+}
