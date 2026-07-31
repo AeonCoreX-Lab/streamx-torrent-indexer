@@ -25,7 +25,16 @@
 // `id` (shouldn't happen — CI's validator rejects duplicate ids across
 // the two directories in the same PR), verified/ wins.
 
-use crate::schema::{IndexerRegistry, SiteConfig};
+// pub use, not a plain use: dispatch.rs and engine.rs both write
+// `use crate::registry::IndexerRegistry;`, and lib.rs's own doc example
+// calls `streamx_indexer::registry::load_embedded()` and expects the
+// return type to be reachable at this path too. A private `use` here
+// would compile fine for registry.rs's own internal references but
+// leave IndexerRegistry unreachable from outside this module — exactly
+// the E0603 "private struct import" error that surfaces at every other
+// call site instead of here.
+pub use crate::schema::IndexerRegistry;
+use crate::schema::SiteConfig;
 use std::collections::HashMap;
 
 #[derive(Debug, thiserror::Error)]

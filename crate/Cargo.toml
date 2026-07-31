@@ -33,6 +33,14 @@ futures     = "0.3"
 urlencoding = "2"
 regex       = "1"
 
+# Needed for real code, not just tests/dev — generic_html.rs uses
+# tokio::time::sleep() for the per-request delay_ms rate-limit, and any
+# consumer of this crate already runs inside a tokio runtime anyway
+# (StreamX Ultra's JNI async bridge, tools/validator, tools/jackett-sync
+# are all tokio-based), so pulling in the "time" feature here costs
+# nothing extra in practice.
+tokio = { version = "1", features = ["time"] }
+
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
