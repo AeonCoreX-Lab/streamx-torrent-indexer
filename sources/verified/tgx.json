@@ -1,38 +1,38 @@
 {
-  "id": "tgx",
-  "enabled": true,
   "display_name": "TorrentGalaxy",
+  "enabled": true,
+  "id": "tgx",
+  "imdb_path": "/get-posts/keywords:{imdb_id}",
   "kind": "html",
   "mirrors": [
     "https://torrentgalaxy.one",
     "https://torrentgalaxy.info"
   ],
-  "search_path": "/get-posts/keywords:{query}",
-  "imdb_path": "/get-posts/keywords:{imdb_id}",
-  "pages": 1,
-  "selectors": {
-    "row": "div.tgxtablerow",
-    "title": "a[href^=\"/post-detail/\"]",
-    "title_attr": "title",
-    "magnet_location": "listing",
-    "magnet": "a[href^=\"magnet:?xt=\"]",
-    "magnet_attr": "href",
-    "size": "div.tgxtablecell:nth-last-child(5)",
-    "seeds": "div.tgxtablecell:nth-last-child(2) span font",
-    "seeds_index": 0,
-    "peers": "div.tgxtablecell:nth-last-child(2) span font",
-    "peers_index": 1
+  "origin": {
+    "jackett_id": "torrentgalaxyclone",
+    "kind": "jackett",
+    "last_verified": "2026-07-31T04:28:32Z"
   },
+  "pages": 1,
   "request": {
+    "delay_ms": 0,
     "headers": {
       "Accept": "text/html,application/xhtml+xml",
       "Accept-Language": "en-US,en;q=0.9"
-    },
-    "delay_ms": 0
+    }
   },
-  "origin": {
-    "kind": "jackett",
-    "jackett_id": "torrentgalaxyclone",
-    "last_verified": null
+  "search_path": "/get-posts/keywords:{query}",
+  "selectors": {
+    "magnet": "a[href^=\"magnet:?xt=\"]",
+    "magnet_attr": "href",
+    "magnet_location": "listing",
+    "peers": "div.tgxtablecell:nth-last-child(2) span font",
+    "peers_index": 1,
+    "row": "div.tgxtablerow",
+    "seeds": "div.tgxtablecell:nth-last-child(2) span font",
+    "seeds_index": 0,
+    "size": "div.tgxtablecell:nth-last-child(5)",
+    "title": "a[href^=\"/post-detail/\"]",
+    "title_attr": "title"
   }
 }

@@ -1,34 +1,58 @@
 {
-  "id": "tpb",
-  "enabled": true,
   "display_name": "ThePirateBay",
-  "kind": "json",
-  "mirrors": [
-    "https://apibay.org",
-    "https://apibay.li"
-  ],
-  "search_path": "/q.php?q={query}&cat=",
-  "pages": 1,
+  "enabled": true,
+  "id": "tpb",
   "json_fields": {
-    "results_array": "",
-    "title": "name",
+    "apply_tpb_query_cleanup": true,
+    "imdb": "imdb",
     "infohash": "info_hash",
     "infohash_is_full_magnet": false,
-    "size": "size",
-    "seeds": "seeders",
     "peers": "leechers",
-    "imdb": "imdb",
-    "apply_tpb_query_cleanup": true
+    "results_array": "",
+    "seeds": "seeders",
+    "size": "size",
+    "title": "name"
   },
+  "kind": "json",
+  "mirrors": [
+    "https://thepiratebay.org",
+    "https://thepiratebay.unblockninja.com",
+    "https://thepiratebay.ninjaproxy1.com",
+    "https://tpb.proxyninja.org",
+    "https://thepiratebay.proxyninja.net",
+    "https://thepiratebay.torrentbay.st",
+    "https://tpb.skynetcloud.site",
+    "https://piratehaven.xyz",
+    "https://mirrorbay.top",
+    "https://thepiratebay0.org",
+    "https://thepiratebay10.xyz",
+    "https://pirateproxylive.org",
+    "https://thehiddenbay.com",
+    "https://thepiratebay.zone",
+    "https://tpb.party",
+    "https://piratebayproxy.live",
+    "https://piratebay.live",
+    "https://piratebay.party",
+    "https://thepiratebay.party",
+    "https://thepiratebaye.org",
+    "https://thepiratebay.cloud",
+    "https://tpb-proxy.xyz",
+    "https://tpb.re",
+    "https://tpirbay.site",
+    "https://tpirbay.top",
+    "https://tpirbay.xyz"
+  ],
+  "origin": {
+    "jackett_id": "thepiratebay",
+    "kind": "jackett",
+    "last_verified": "2026-07-31T04:28:32Z"
+  },
+  "pages": 1,
   "request": {
+    "delay_ms": 0,
     "headers": {
       "Accept": "application/json"
-    },
-    "delay_ms": 0
+    }
   },
-  "origin": {
-    "kind": "jackett",
-    "jackett_id": "thepiratebay",
-    "last_verified": null
-  }
+  "search_path": "/q.php?q={query}&cat="
 }

@@ -1,22 +1,52 @@
 {
-  "torrentsome": {
-    "enabled": true,
-    "mirrors": ["https://torrentsome256.com"],
-    "origin": { "kind": "jackett", "jackett_id": "torrentsome", "last_verified": null }
-  },
-  "torrenttip": {
-    "enabled": true,
-    "mirrors": ["https://torrenttip237.top"],
-    "origin": { "kind": "jackett", "jackett_id": "torrenttip", "last_verified": null }
-  },
   "nyaa": {
     "enabled": true,
-    "mirrors": ["https://nyaa.si", "https://nyaa.land"],
-    "origin": { "kind": "jackett", "jackett_id": "nyaasi", "last_verified": null }
+    "mirrors": [
+      "https://nyaa.si",
+      "https://nyaa.iss.ink",
+      "https://nyaa.land",
+      "https://nyaa.mom",
+      "https://nyaa.unblockninja.com"
+    ],
+    "origin": {
+      "jackett_id": "nyaasi",
+      "kind": "jackett",
+      "last_verified": "2026-07-31T04:28:32Z"
+    }
   },
   "tokyotosho": {
     "enabled": true,
-    "mirrors": ["https://www.tokyotosho.info", "https://www.tokyotosho.se"],
-    "origin": { "kind": "jackett", "jackett_id": "tokyotosho", "last_verified": null }
+    "mirrors": [
+      "https://www.tokyotosho.info",
+      "https://www.tokyotosho.se",
+      "https://tokyo-tosho.net"
+    ],
+    "origin": {
+      "jackett_id": "tokyotosho",
+      "kind": "jackett",
+      "last_verified": "2026-07-31T04:28:32Z"
+    }
+  },
+  "torrentsome": {
+    "enabled": true,
+    "mirrors": [
+      "https://torrentsome256.com"
+    ],
+    "origin": {
+      "jackett_id": "torrentsome",
+      "kind": "jackett",
+      "last_verified": null
+    }
+  },
+  "torrenttip": {
+    "enabled": true,
+    "mirrors": [
+      "https://torrenttip237.top"
+    ],
+    "origin": {
+      "jackett_id": "torrenttip",
+      "kind": "jackett",
+      "last_verified": null
+    }
   }
 }

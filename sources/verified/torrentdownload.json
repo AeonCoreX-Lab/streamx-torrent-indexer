@@ -1,40 +1,40 @@
 {
-  "id": "torrentdownload",
-  "enabled": true,
   "display_name": "TorrentDownload",
+  "enabled": true,
+  "id": "torrentdownload",
   "kind": "html",
   "mirrors": [
     "https://www.torrentdownload.info"
   ],
-  "search_path": "/searchd?q={query}",
-  "pages": 1,
-  "selectors": {
-    "row": "table.table2 > tbody > tr:has(span.smallish)",
-    "title": "div.tt-name > a[href^=\"/\"]",
-    "title_attr": "text",
-    "magnet_location": "detail",
-    "detail_link": "div.tt-name > a[href^=\"/\"]",
-    "detail_link_attr": "href",
-    "detail_magnet_selector": "a[href^=\"magnet:?xt=\"]",
-    "detail_magnet_selector_fallback": "a[href^=\"magnet:\"]",
-    "category": "div.tt-name > span.smallish",
-    "size": "td:nth-child(3)",
-    "seeds": "td.tdseed",
-    "seeds_index": 0,
-    "peers": "td.tdleech",
-    "peers_index": 0
+  "origin": {
+    "jackett_id": "torrentdownload",
+    "kind": "jackett",
+    "last_verified": "2026-07-31T04:28:32Z"
   },
+  "pages": 1,
   "request": {
+    "delay_ms": 0,
     "headers": {
       "Accept": "text/html,application/xhtml+xml",
       "Accept-Language": "en-US,en;q=0.9"
     },
-    "delay_ms": 0,
     "min_seeds_for_detail_fetch": 1
   },
-  "origin": {
-    "kind": "jackett",
-    "jackett_id": "torrentdownload",
-    "last_verified": null
+  "search_path": "/searchd?q={query}",
+  "selectors": {
+    "category": "div.tt-name > span.smallish",
+    "detail_link": "div.tt-name > a[href^=\"/\"]",
+    "detail_link_attr": "href",
+    "detail_magnet_selector": "a[href^=\"magnet:?xt=\"]",
+    "detail_magnet_selector_fallback": "a[href^=\"magnet:\"]",
+    "magnet_location": "detail",
+    "peers": "td.tdleech",
+    "peers_index": 0,
+    "row": "table.table2 > tbody > tr:has(span.smallish)",
+    "seeds": "td.tdseed",
+    "seeds_index": 0,
+    "size": "td:nth-child(3)",
+    "title": "div.tt-name > a[href^=\"/\"]",
+    "title_attr": "text"
   }
 }

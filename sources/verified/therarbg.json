@@ -1,33 +1,39 @@
 {
-  "id": "therarbg",
-  "enabled": true,
   "display_name": "TheRARBG",
+  "enabled": true,
+  "id": "therarbg",
+  "imdb_path": "/get-posts/order:-se:category:Movies:keywords:{imdb_id}:paginate_by:50:format:json/",
+  "json_fields": {
+    "category": "c",
+    "infohash": "h",
+    "infohash_is_full_magnet": false,
+    "peers": "le",
+    "results_array": "results",
+    "seeds": "se",
+    "size": "s",
+    "title": "n"
+  },
   "kind": "json",
   "mirrors": [
     "https://therarbg.to",
-    "https://therarbg.com"
+    "https://therarbg.com",
+    "https://therar.site",
+    "https://rarbg.unblockninja.com",
+    "https://rarbg.ninjaproxy1.com",
+    "https://rarbg.proxyninja.org",
+    "https://rarbg.proxyninja.net",
+    "https://rarbg.torrentbay.st"
   ],
-  "search_path": "/get-posts/order:-se:category:Movies:keywords:{query}:paginate_by:50:format:json/",
-  "imdb_path": "/get-posts/order:-se:category:Movies:keywords:{imdb_id}:paginate_by:50:format:json/",
-  "json_fields": {
-    "results_array": "results",
-    "title": "n",
-    "infohash": "h",
-    "infohash_is_full_magnet": false,
-    "size": "s",
-    "seeds": "se",
-    "peers": "le",
-    "category": "c"
+  "origin": {
+    "jackett_id": "therarbg",
+    "kind": "jackett",
+    "last_verified": "2026-07-31T04:28:32Z"
   },
   "request": {
+    "delay_ms": 0,
     "headers": {
       "Accept": "application/json"
-    },
-    "delay_ms": 0
+    }
   },
-  "origin": {
-    "kind": "jackett",
-    "jackett_id": "therarbg",
-    "last_verified": null
-  }
+  "search_path": "/get-posts/order:-se:category:Movies:keywords:{query}:paginate_by:50:format:json/"
 }
