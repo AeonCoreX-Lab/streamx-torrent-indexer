@@ -22,3 +22,4 @@ tokio       = { version = "1", features = ["rt-multi-thread", "macros"] }
 reqwest     = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 scraper     = "0.20"
 colored     = "2"
+urlencoding = "2"
