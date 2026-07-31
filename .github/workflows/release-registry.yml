@@ -1,0 +1,129 @@
+name: Release registry
+
+# Daily scheduled job (same cron pattern as jackett-sync.yml, offset by
+# an hour so it naturally runs AFTER a same-day jackett-sync PR has had
+# a chance to merge): rebuilds dist/registry.json from the current
+# sources/ tree, and — only if the actual site data changed since the
+# last release, not just the timestamp — cuts a new date-based GitHub
+# Release (v2026.07.31, or v2026.07.31.1 / .2 / ... for a second/third
+# release on the same day) with registry.json attached as a release
+# asset.
+#
+# This is the "someone merges a new source, or jackett-sync merges a
+# domain fix, and some time later it auto-releases" system: nobody has
+# to remember to cut a release by hand, and a day with zero source
+# changes produces zero releases (no version-number noise).
+#
+# StreamX Ultra fetches the LATEST release's registry.json asset URL at
+# runtime — see docs/CONSUMING.md. That URL doesn't change between
+# releases (GitHub's /releases/latest/download/registry.json redirects
+# to whichever release is newest), so the app never needs to know the
+# current version string itself; it just always gets the latest one.
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC daily — after jackett-sync's 04:17 run
+  workflow_dispatch: {}   # manual "run now" button in the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build streamx-indexer-cli
+        run: cargo build --release -p streamx-indexer-cli
+
+      - name: Build registry with placeholder version (for diffing only)
+        run: ./target/release/streamx-indexer-cli build-registry --root . --out dist/registry.json --version PENDING
+
+      - name: Fetch previous release's registry.json (if any)
+        id: prev
+        run: |
+          set +e
+          curl -sfL -o /tmp/previous-registry.json \
+            "https://github.com/${{ github.repository }}/releases/latest/download/registry.json"
+          if [ $? -eq 0 ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No previous release found — this will be the first one."
+          fi
+
+      # Compare content with the `updated` field stripped out of BOTH
+      # sides, so a content-identical rebuild never triggers a release
+      # just because the placeholder/previous version string differs.
+      - name: Check for real content changes
+        id: diff
+        run: |
+          jq 'del(.updated)' dist/registry.json > /tmp/new-normalized.json
+          if [ "${{ steps.prev.outputs.found }}" = "true" ]; then
+            jq 'del(.updated)' /tmp/previous-registry.json > /tmp/prev-normalized.json
+            if diff -q /tmp/new-normalized.json /tmp/prev-normalized.json > /dev/null; then
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT" # first-ever release
+          fi
+
+      - name: Determine today's version + same-day suffix
+        id: version
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          BASE=$(date -u +%Y.%m.%d)
+          # Find how many releases already exist for today (tag prefix
+          # match), so a second source merge on the same day gets
+          # ".1", a third gets ".2", etc., instead of colliding.
+          EXISTING=$(gh release list --limit 100 --json tagName \
+            --jq "[.[] | select(.tagName | startswith(\"v${BASE}\"))] | length")
+          if [ "$EXISTING" = "0" ]; then
+            VERSION="$BASE"
+          else
+            VERSION="${BASE}.${EXISTING}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Rebuild registry with the final version stamped in
+        if: steps.diff.outputs.changed == 'true'
+        run: ./target/release/streamx-indexer-cli build-registry --root . --out dist/registry.json --version "${{ steps.version.outputs.version }}"
+
+      # Same validator used by validate-sources.yml — a version stamp
+      # is the only field that changed since the schema-check that
+      # already ran on the PR(s) that got us here, but this is a cheap
+      # unattended-release safety net.
+      - name: Build validator
+        if: steps.diff.outputs.changed == 'true'
+        run: cargo build --release -p streamx-indexer-validator
+
+      - name: Validate before releasing
+        if: steps.diff.outputs.changed == 'true'
+        run: ./target/release/validator check --root .
+
+      - name: Create GitHub Release
+        if: steps.diff.outputs.changed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.version }}
+          body: |
+            Automated daily registry release — see `.github/workflows/release-registry.yml`.
+
+            Contains every source under `sources/verified/` and
+            `sources/community/`, merged as of this run. Cut only
+            because the underlying site data changed since the
+            previous release (a version-only rebuild never triggers a
+            release on its own).
+          files: dist/registry.json

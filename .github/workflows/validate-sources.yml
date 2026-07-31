@@ -29,19 +29,19 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            crate
-            tools/validator
+        # No `workspaces:` override — this repo has ONE workspace at
+        # the repo root (see /Cargo.toml), so every member crate
+        # (including tools/validator) builds into the same top-level
+        # target/ dir. Building or running from inside a member's own
+        # directory still resolves against that shared target/ — it
+        # does NOT get its own — so every cargo/binary invocation below
+        # runs from the repo root to match.
 
       - name: Build validator
         run: cargo build --release -p streamx-indexer-validator
-        working-directory: tools/validator
 
       - name: Schema validation (no network)
-        run: |
-          ./target/release/validator check --root ../..
-        working-directory: tools/validator
+        run: ./target/release/validator check --root .
 
       - name: Comment result on PR
         if: failure() && github.event_name == 'pull_request'
@@ -83,18 +83,11 @@ jobs:
       - name: Cache cargo
         if: steps.changed.outputs.ids != ''
         uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            crate
-            tools/validator
 
       - name: Build validator
         if: steps.changed.outputs.ids != ''
         run: cargo build --release -p streamx-indexer-validator
-        working-directory: tools/validator
 
       - name: Live selector smoke-test (changed sources only)
         if: steps.changed.outputs.ids != ''
-        run: |
-          ./target/release/validator check --root ../.. --live --only "${{ steps.changed.outputs.ids }}"
-        working-directory: tools/validator
+        run: ./target/release/validator check --root . --live --only "${{ steps.changed.outputs.ids }}"

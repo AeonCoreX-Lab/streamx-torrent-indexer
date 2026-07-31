@@ -26,14 +26,21 @@ obvious: it's frozen at whatever commit the app was built from.
 ### 2. Hosted fetch with fallback (recommended — this is what gets you
    no-APK-update fixes)
 
-Build a `dist/registry.json` from this repo's current `sources/` (a
-`cargo run -p streamx-indexer-cli -- build-registry` step, or simply
-host the individual `sources/**/*.json` files and merge them
-client-side using `streamx_indexer::registry::build_from_files`), serve
-it from wherever StreamX Ultra already hosts config (the same place
-`indexer-config.default.json` used to live), and on the app side:
+`.github/workflows/release-registry.yml` runs daily and, only when the
+actual site data changed since the last release (not on a no-op day),
+cuts a date-based GitHub Release (`v2026.07.31`, or `v2026.07.31.1` for
+a same-day second release) with a built `registry.json` attached. You
+don't have to track version numbers on the app side — GitHub always
+redirects the "latest" alias to whichever release is newest:
+
+```
+https://github.com/AeonCoreX-Lab/streamx-torrent-indexer/releases/latest/download/registry.json
+```
 
 ```rust
+const HOSTED_REGISTRY_URL: &str =
+    "https://github.com/AeonCoreX-Lab/streamx-torrent-indexer/releases/latest/download/registry.json";
+
 async fn load_registry(client: &reqwest::Client, cache_dir: &Path) -> IndexerRegistry {
     match fetch_and_cache(client, cache_dir, HOSTED_REGISTRY_URL).await {
         Ok(raw) => match streamx_indexer::registry::load_from_json(&raw) {
@@ -55,10 +62,16 @@ async fn load_registry(client: &reqwest::Client, cache_dir: &Path) -> IndexerReg
 This three-tier fallback (hosted → last-known-good cache → embedded)
 is exactly the pattern the app's original `indexer/config/loader.rs`
 already used for the single `indexer-config.default.json` file — the
-only change is that the hosted JSON now comes from this repo's
-`sources/` instead of being hand-maintained inside the app repo, so a
-domain fix merged here reaches users on their next app launch, not
-their next Play Store update.
+only change is that the hosted JSON now comes from an automated GitHub
+Release instead of being hand-maintained inside the app repo, so a
+community-contributed source or a `jackett-sync` domain fix reaches
+users the next time this daily job runs, not their next Play Store
+update.
+
+Check `registry.updated` (the date-based version string, e.g.
+`"2026.07.31"`) if you want to log or display which registry version
+the app is currently running — it's informational only, nothing in the
+crate depends on comparing it.
 
 ## Calling the engine
 

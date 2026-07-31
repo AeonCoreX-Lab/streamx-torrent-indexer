@@ -5,13 +5,15 @@
 //
 //   build-registry — assembles every file in sources/verified/ +
 //   sources/community/ + sources/special-sites.json into a single
-//   dist/registry.json, stamped with the current time and this repo's
-//   commit (if run inside a git checkout). This is the file you host
-//   somewhere StreamX Ultra can fetch at runtime — see
-//   docs/CONSUMING.md for the fetch-with-fallback pattern on the app
-//   side. It's the same merge logic crate::registry::load_embedded()
-//   uses internally, just writing the result to disk instead of
-//   baking it into the binary via include_str!.
+//   dist/registry.json. --version stamps the registry.updated field —
+//   .github/workflows/release-registry.yml always passes an explicit
+//   date-based version (e.g. "2026.07.31") so the file's own version
+//   field matches its GitHub Release tag; without --version it falls
+//   back to a UTC timestamp, which is fine for a local/manual run.
+//   This is the same merge logic crate::registry::load_embedded() uses
+//   internally, just writing the result to disk instead of baking it
+//   into the binary via include_str! — see docs/CONSUMING.md for how
+//   the app fetches the released copy at runtime.
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -33,17 +35,25 @@ enum Command {
         root: PathBuf,
         #[arg(long, default_value = "dist/registry.json")]
         out: PathBuf,
+        /// Stamped into registry.updated. If omitted, falls back to a
+        /// UTC timestamp — fine for local/manual runs, but
+        /// .github/workflows/release-registry.yml always passes an
+        /// explicit date-based version (e.g. "2026.07.31" or
+        /// "2026.07.31.1" for a same-day second release) so the
+        /// version in the file matches the GitHub Release tag exactly.
+        #[arg(long)]
+        version: Option<String>,
     },
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Command::BuildRegistry { root, out } => build_registry(&root, &out),
+        Command::BuildRegistry { root, out, version } => build_registry(&root, &out, version),
     }
 }
 
-fn build_registry(root: &PathBuf, out: &PathBuf) -> Result<()> {
+fn build_registry(root: &PathBuf, out: &PathBuf, version: Option<String>) -> Result<()> {
     let sources_dir = root.join("sources");
 
     let mut verified_owned = Vec::new();
@@ -69,7 +79,7 @@ fn build_registry(root: &PathBuf, out: &PathBuf) -> Result<()> {
 
     let mut registry = streamx_indexer::registry::build_from_files(&verified, &community, &special_json)
         .context("assembling registry from sources/")?;
-    registry.updated = now_rfc3339_ish();
+    registry.updated = version.unwrap_or_else(now_rfc3339_ish);
 
     let out_path = root.join(out);
     if let Some(parent) = out_path.parent() {

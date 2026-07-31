@@ -30,6 +30,18 @@ setup had three problems this repo fixes:
    removes an indexer entirely (like it did with `torrentqq.yml`), the
    affected source gets flagged (`origin.upstream_removed: true`)
    instead of silently going stale.
+4. **Not automatically released.** A merged source fix used to just...
+   sit in the repo until someone remembered to cut a release.
+   `tools/cli`'s `build-registry` assembles `sources/` into a single
+   `dist/registry.json`, and `.github/workflows/release-registry.yml`
+   runs daily, cutting a date-based GitHub Release
+   (`v2026.07.31`, or `v2026.07.31.1` for a same-day second change)
+   with that file attached — but only on a day the underlying site
+   data actually changed, so there's no version-number noise on a
+   no-op day. StreamX Ultra fetches the "latest release" URL at
+   runtime (see `docs/CONSUMING.md`), so any merge — a community PR, a
+   jackett-sync fix, a manual edit — reaches users on their next app
+   launch, with nobody having to remember to publish anything.
 
 ## Structure
 
@@ -58,6 +70,7 @@ tools/
 .github/workflows/
   validate-sources.yml   runs on every PR touching sources/
   jackett-sync.yml        runs daily, auto-opens a PR on domain drift
+  release-registry.yml    runs daily, auto-cuts a date-based GitHub Release when sources/ data actually changed
 
 docs/
   CONTRIBUTING.md       how to add a source (JSON, not YAML)

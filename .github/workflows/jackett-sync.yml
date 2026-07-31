@@ -27,18 +27,18 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            crate
-            tools/jackett-sync
+        # No `workspaces:` override — see the comment in
+        # validate-sources.yml: this repo is one Cargo workspace
+        # rooted at /Cargo.toml, so every member's build output lands
+        # in the shared top-level target/, regardless of which
+        # member's directory `cargo build` was invoked from. Every
+        # step below builds and runs from the repo root to match.
 
       - name: Build jackett-sync
         run: cargo build --release -p streamx-jackett-sync
-        working-directory: tools/jackett-sync
 
       - name: Run sync (write mode)
-        run: ./target/release/jackett-sync --root ../.. --write
-        working-directory: tools/jackett-sync
+        run: ./target/release/jackett-sync --root . --write
 
       - name: Check for changes
         id: diff
@@ -55,12 +55,10 @@ jobs:
       - name: Build validator
         if: steps.diff.outputs.changed == 'true'
         run: cargo build --release -p streamx-indexer-validator
-        working-directory: tools/validator
 
       - name: Validate rewritten sources
         if: steps.diff.outputs.changed == 'true'
-        run: ./target/release/validator check --root ../..
-        working-directory: tools/validator
+        run: ./target/release/validator check --root .
 
       - name: Open PR with the domain updates
         if: steps.diff.outputs.changed == 'true'
