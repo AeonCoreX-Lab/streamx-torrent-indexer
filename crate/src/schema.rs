@@ -51,6 +51,25 @@ pub struct SiteConfig {
     pub mirrors: Vec<String>,
     pub search_path: String,
 
+    /// Mirrors that must NEVER be written into `mirrors[]` by
+    /// tools/jackett-sync, even though Jackett's own upstream `links:`
+    /// still lists them. Exists for domains confirmed genuinely dead
+    /// (DNS failure, not just bot-challenge-blocked — see
+    /// tools/validator's BLOCKED vs DEAD distinction) that Jackett
+    /// hasn't pruned from their own definition yet. Without this,
+    /// jackett-sync would silently re-add a manually-removed dead
+    /// mirror on its very next daily run, since as far as it's
+    /// concerned nothing upstream changed.
+    ///
+    /// This is NOT for a mirror that's merely Cloudflare/WAF-blocked
+    /// from wherever validated it — that's still a live mirror for real
+    /// users and belongs in `mirrors[]`, not here. Only add an entry
+    /// here once you've confirmed the domain itself doesn't resolve or
+    /// serve anything for anyone (e.g. DNS_PROBE_FINISHED_NXDOMAIN in a
+    /// real browser), not just "the validator got a 403".
+    #[serde(default)]
+    pub excluded_mirrors: Vec<String>,
+
     #[serde(default)]
     pub imdb_path: Option<String>,
 

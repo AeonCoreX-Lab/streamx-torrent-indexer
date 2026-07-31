@@ -29,6 +29,11 @@
       "items": { "type": "string", "format": "uri" },
       "minItems": 1
     },
+    "excluded_mirrors": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" },
+      "description": "Mirrors permanently blocklisted from tools/jackett-sync's auto-update, even if Jackett's own upstream links: still lists them. Only for domains confirmed genuinely dead (DNS failure) — NOT for a mirror that's merely bot-challenge-blocked, which is still live for real users."
+    },
     "search_path": {
       "type": "string",
       "description": "Path appended to a mirror, with {query} substituted, e.g. \"/search/{query}/1/\"."

@@ -90,4 +90,4 @@ jobs:
 
       - name: Live selector smoke-test (changed sources only)
         if: steps.changed.outputs.ids != ''
-        run: ./target/release/validator check --root . --live --only "${{ steps.changed.outputs.ids }}"
+        run: ./target/release/validator check --root . --live --tolerate-blocked --only "${{ steps.changed.outputs.ids }}"

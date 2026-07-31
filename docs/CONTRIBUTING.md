@@ -108,6 +108,17 @@ uses it; both directories are live in every release.
   source's upstream Jackett YAML (if `origin.jackett_id` is set) and
   auto-PRs a `mirrors[]` update if the domain moved. You don't have to
   do anything for a plain mirror change ever again.
+- If one of your mirrors turns out to be genuinely dead (not just
+  temporarily bot-challenge-blocked — see the next section) but
+  Jackett's own upstream `links:` hasn't been cleaned up yet, add it to
+  `excluded_mirrors` instead of just deleting it from `mirrors[]` — a
+  plain deletion gets silently undone by the next `jackett-sync` run,
+  since as far as that tool can tell nothing changed. `excluded_mirrors`
+  is a permanent blocklist that survives every future sync:
+  ```json
+  "mirrors": ["https://example-torrents.com"],
+  "excluded_mirrors": ["https://example-torrents-dead-mirror.com"]
+  ```
 - If Jackett deletes the upstream definition entirely, the sync bot
   flags your file with `origin.upstream_removed: true` instead of
   guessing — it never silently breaks or deletes your source. A
@@ -119,3 +130,24 @@ uses it; both directories are live in every release.
   `--live` validator run (or the next PR that touches the file) will
   catch it and fail loudly, and it becomes a normal "fix the
   selectors" PR like your original contribution.
+
+## Blocked vs. dead mirrors — don't confuse the two
+
+A mirror behind Cloudflare (or a similar bot-challenge wall) will
+return HTTP 403/503/429 to the validator's automated fetch even though
+it works completely fine in a real browser — the site is alive, it's
+just refusing this specific unverified request. `tools/validator`
+treats this as **blocked**, not dead: it tries the next mirror instead
+of giving up, and if every mirror is merely blocked (none actually
+unreachable), that alone won't fail a PR (`--tolerate-blocked` is
+always passed in CI, since GitHub Actions runner IPs commonly sit on
+Cloudflare's own datacenter blocklists regardless of headers).
+
+Only add a mirror to `excluded_mirrors` once you've confirmed it's
+**genuinely dead** — DNS failure (`DNS_PROBE_FINISHED_NXDOMAIN`),
+connection refused, or a plain non-challenge error status, checked in
+an actual browser, not just "the validator got a 403." If you're not
+sure which one you're looking at, open the mirror in a normal browser
+tab: a Cloudflare challenge page (even a "checking your browser..."
+interstitial) means it's blocked, not dead.
+

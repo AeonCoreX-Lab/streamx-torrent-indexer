@@ -187,6 +187,22 @@ async fn sync_site_file(client: &reqwest::Client, path: &Path, write: bool) -> R
         return Ok(SyncOutcome::UpstreamRemoved);
     };
 
+    // Drop anything on this source's excluded_mirrors list BEFORE
+    // comparing against our current mirrors[] — this is what stops a
+    // confirmed-dead domain (still present in Jackett's own upstream
+    // links: but not pruned there yet) from being silently re-added on
+    // every sync run. See schema.rs's excluded_mirrors doc comment for
+    // what belongs here (genuinely dead only, never a merely
+    // bot-challenge-blocked mirror).
+    let excluded: std::collections::HashSet<String> = value["excluded_mirrors"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|v| v.as_str()).map(|s| s.trim_end_matches('/').to_string()).collect())
+        .unwrap_or_default();
+    let upstream_links: Vec<String> = upstream_links
+        .into_iter()
+        .filter(|l| !excluded.contains(l))
+        .collect();
+
     let our_mirrors: Vec<String> = value["mirrors"]
         .as_array()
         .map(|a| a.iter().filter_map(|v| v.as_str()).map(|s| s.trim_end_matches('/').to_string()).collect())
@@ -239,6 +255,15 @@ async fn sync_special_sites(client: &reqwest::Client, path: &Path, write: bool) 
 
         match fetch_cardigann_links(client, &jackett_id).await {
             Ok(Some(upstream_links)) if !upstream_links.is_empty() => {
+                // Same excluded_mirrors filtering as sync_site_file —
+                // special-sites.json entries can carry the field too.
+                let excluded: std::collections::HashSet<String> = entry["excluded_mirrors"]
+                    .as_array()
+                    .map(|a| a.iter().filter_map(|v| v.as_str()).map(|s| s.trim_end_matches('/').to_string()).collect())
+                    .unwrap_or_default();
+                let upstream_links: Vec<String> =
+                    upstream_links.into_iter().filter(|l| !excluded.contains(l)).collect();
+
                 let ours: Vec<String> = entry["mirrors"]
                     .as_array()
                     .map(|a| a.iter().filter_map(|v| v.as_str()).map(|s| s.trim_end_matches('/').to_string()).collect())
