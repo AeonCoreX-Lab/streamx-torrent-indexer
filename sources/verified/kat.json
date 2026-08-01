@@ -1,6 +1,9 @@
 {
   "display_name": "KickassTorrents",
   "enabled": true,
+  "excluded_mirrors": [
+    "https://kickasstorrents.unblockninja.com"
+  ],
   "id": "kat",
   "kind": "html",
   "mirrors": [
@@ -10,13 +13,10 @@
     "https://kickasstorrents.proxyninja.org",
     "https://kickasstorrents.proxyninja.net"
   ],
-  "excluded_mirrors": [
-    "https://kickasstorrents.unblockninja.com"
-  ],
   "origin": {
     "jackett_id": "kickasstorrents-to",
     "kind": "jackett",
-    "last_verified": "2026-07-31T07:17:18Z"
+    "last_verified": "2026-08-01T06:42:53Z"
   },
   "pages": 1,
   "request": {
