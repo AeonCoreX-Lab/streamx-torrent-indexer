@@ -93,6 +93,18 @@ pub struct SiteConfig {
     pub origin: Option<SourceOrigin>,
 }
 
+impl SiteConfig {
+    /// Whether this site needs a per-user session cookie to search at
+    /// all. Callers (the app-side search orchestrator, before calling
+    /// generic_html::search / generic_json::search) use this to decide
+    /// whether to look up a stored cookie for this site first — see
+    /// AuthConfig's doc comment for the full split between this public
+    /// metadata and the actual per-user secret.
+    pub fn requires_auth(&self) -> bool {
+        self.request.auth.is_some()
+    }
+}
+
 /// Where this definition came from, and how to keep it in sync.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SourceOrigin {
@@ -242,4 +254,78 @@ pub struct RequestConfig {
     pub delay_ms: u64,
     #[serde(default)]
     pub min_seeds_for_detail_fetch: Option<u32>,
+
+    /// Metadata describing what this site needs to search as a logged-in
+    /// user — see AuthConfig's doc comment for the full security model.
+    /// `None` (the default, matching every existing public source) means
+    /// exactly what it always meant: no auth, search anonymously.
+    #[serde(default)]
+    pub auth: Option<AuthConfig>,
+}
+
+/// Describes what kind of session a private tracker needs — NOT the
+/// session itself. This struct is metadata that ships in the public
+/// source JSON (same repo, same distribution as every public site's
+/// config) and is identical for every user of a given tracker; it never
+/// contains a secret.
+///
+/// The actual per-user secret (a session cookie the user obtained by
+/// logging into the tracker's own website) lives ONLY on that user's
+/// device, in the app's own encrypted local store — it is never part of
+/// a SiteConfig, never committed to this repo, and never sent to any
+/// StreamX-operated server. The engine functions that need it
+/// (generic_html::search / generic_json::search) take it as a separate
+/// runtime parameter (`auth_cookie: Option<&str>`) supplied by the
+/// caller at search time, not read from this config. See
+/// generic_html.rs's search() signature and its doc comment for exactly
+/// how the two meet.
+///
+/// Why split it this way instead of one AuthConfig with an optional
+/// cookie field: keeping the schema (this struct) and the secret
+/// (device-local only) in genuinely separate types makes it a compile
+/// error to accidentally serialize a live cookie into a source JSON
+/// file that could get committed to sources/community/ — there's no
+/// field to put it in.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AuthConfig {
+    /// "cookie" is the only method the engine implements right now — the
+    /// app shows the user this site needs a cookie, they copy one out of
+    /// their own browser's dev tools after logging into the tracker
+    /// normally, and paste it in. See the app-side
+    /// PrivateTrackerCookieStore for that flow.
+    ///
+    /// Jackett's own login methods for private trackers also include
+    /// "post" and "form" (automating the login itself, username/password
+    /// in hand) — NOT implemented here yet. Deliberately starting with
+    /// the safer subset: this app never needs to see or store a
+    /// tracker password, only whatever cookie a REAL login (that the
+    /// user performed themselves, in their own browser or the in-app
+    /// WebView) already produced.
+    pub method: AuthMethod,
+
+    /// Human-readable hint shown in the app's "how do I get this?" UI
+    /// for this specific site — e.g. "Log in, then copy the value of the
+    /// `uid` and `pass` cookies from DevTools → Application → Cookies."
+    /// Free text because every tracker's own instructions differ enough
+    /// that a single generic message isn't actually helpful.
+    #[serde(default)]
+    pub instructions: String,
+
+    /// Optional CSS selector present only on a page you can reach when
+    /// actually logged in (e.g. a "Logout" link, or a "My torrents"
+    /// nav item) — used purely to validate that a cookie the user pasted
+    /// is still working, BEFORE running an actual search with it and
+    /// getting a confusing zero-results response instead of a clear
+    /// "your cookie has expired" message. Checked once, against the
+    /// site's own homepage/dashboard path — not run on every search.
+    #[serde(default)]
+    pub login_check_path: Option<String>,
+    #[serde(default)]
+    pub login_check_selector: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AuthMethod {
+    Cookie,
 }

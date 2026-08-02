@@ -16,12 +16,16 @@ use serde_json::Value;
 use crate::schema::SiteConfig;
 use crate::types::TorrentResult;
 
+/// See generic_html.rs's search() doc comment for the full explanation
+/// of `auth_cookie` — same contract here: the caller's per-user stored
+/// cookie for this site, or None to search unauthenticated.
 pub async fn search(
-    client:   &reqwest::Client,
-    site_id:  &str,
-    config:   &SiteConfig,
-    query:    &str,
-    imdb_id:  Option<&str>,
+    client:      &reqwest::Client,
+    site_id:     &str,
+    config:      &SiteConfig,
+    query:       &str,
+    imdb_id:     Option<&str>,
+    auth_cookie: Option<&str>,
 ) -> Vec<TorrentResult> {
     let fields = match &config.json_fields {
         Some(f) => f,
@@ -35,7 +39,7 @@ pub async fn search(
 
     for mirror in &config.mirrors {
         let url = format!("{mirror}{path}");
-        match fetch_and_parse(client, config, fields, &url).await {
+        match fetch_and_parse(client, config, fields, &url, auth_cookie).await {
             Ok(results) if !results.is_empty() => return results,
             Ok(_) => continue, // empty, try next mirror
             Err(e) => log::warn!("[{site_id}] mirror {mirror} failed: {e}"),
@@ -131,14 +135,18 @@ fn is_cjk_unified_ideograph(ch: char) -> bool {
 }
 
 async fn fetch_and_parse(
-    client: &reqwest::Client,
-    config: &SiteConfig,
-    fields: &crate::schema::JsonFields,
-    url:    &str,
+    client:      &reqwest::Client,
+    config:      &SiteConfig,
+    fields:      &crate::schema::JsonFields,
+    url:         &str,
+    auth_cookie: Option<&str>,
 ) -> Result<Vec<TorrentResult>> {
     let mut req = client.get(url);
     for (k, v) in &config.request.headers {
         req = req.header(k.as_str(), v.as_str());
+    }
+    if let Some(cookie) = auth_cookie {
+        req = req.header("Cookie", cookie);
     }
     let resp = req.send().await?;
     if !resp.status().is_success() {

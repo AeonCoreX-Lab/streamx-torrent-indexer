@@ -16,18 +16,31 @@ use crate::types::TorrentResult;
 /// Run a full search against one HTML-kind site, driven by its config.
 /// `page` is 1-indexed; callers loop up to `config.pages` for multi-page
 /// sites (only x1337x currently needs more than 1).
+///
+/// `auth_cookie`: the raw `Cookie:` header value for this specific site,
+/// if the caller already has one stored for it (see
+/// SiteConfig::requires_auth() and schema.rs's AuthConfig doc comment
+/// for where this comes from — it's never read from `config` itself).
+/// Ignored for sites where `config.requires_auth()` is false. Passing
+/// `None` for a site that DOES require auth isn't an error here — it
+/// just searches unauthenticated, which for most private trackers means
+/// a login-wall response with zero parseable rows, i.e. a normal-looking
+/// "no results", not a crash. The app-side caller is responsible for
+/// checking requires_auth() and prompting the user for a cookie before
+/// ever calling this, if it wants a clearer error than that.
 pub async fn search(
     client:      &reqwest::Client,
     site_id:     &str,
     config:      &SiteConfig,
     query:       &str,
     imdb_id:     Option<&str>,
+    auth_cookie: Option<&str>,
 ) -> Vec<TorrentResult> {
     let mut all_results = Vec::new();
 
     for page in 1..=config.pages.max(1) {
         let path = build_path(config, query, imdb_id, page);
-        match fetch_and_parse_page(client, site_id, config, &path).await {
+        match fetch_and_parse_page(client, site_id, config, &path, auth_cookie).await {
             Ok(mut results) => all_results.append(&mut results),
             Err(e) => {
                 log::warn!("[{site_id}] page {page} failed: {e}");
@@ -57,20 +70,22 @@ fn build_path(config: &SiteConfig, query: &str, imdb_id: Option<&str>, page: u32
 }
 
 async fn fetch_and_parse_page(
-    client:  &reqwest::Client,
-    site_id: &str,
-    config:  &SiteConfig,
-    path:    &str,
+    client:      &reqwest::Client,
+    site_id:     &str,
+    config:      &SiteConfig,
+    path:        &str,
+    auth_cookie: Option<&str>,
 ) -> Result<Vec<TorrentResult>> {
-    let html = get_html_with_fallback(client, config, path).await?;
-    parse_html(client, site_id, config, &html).await
+    let html = get_html_with_fallback(client, config, path, auth_cookie).await?;
+    parse_html(client, site_id, config, &html, auth_cookie).await
 }
 
 async fn parse_html(
-    client:  &reqwest::Client,
-    site_id: &str,
-    config:  &SiteConfig,
-    html:    &str,
+    client:      &reqwest::Client,
+    site_id:     &str,
+    config:      &SiteConfig,
+    html:        &str,
+    auth_cookie: Option<&str>,
 ) -> Result<Vec<TorrentResult>> {
     let sel = config.selectors.as_ref()
         .ok_or_else(|| anyhow::anyhow!("site config has no selectors block"))?;
@@ -177,6 +192,10 @@ async fn parse_html(
         let base_mirror = base_mirror.clone();
         let detail_sel = sel.detail_magnet_selector.clone();
         let detail_fallback = sel.detail_magnet_selector_fallback.clone();
+        // Owned clone, not a borrow — this closure runs inside
+        // future::join_all where each future needs its own copy, same
+        // reasoning as client/base_mirror/detail_sel above.
+        let auth_cookie = auth_cookie.map(|c| c.to_string());
         async move {
             let magnet = match meta.magnet_or_detail {
                 MagnetOrDetail::Magnet(m) => m,
@@ -187,7 +206,7 @@ async fn parse_html(
                     } else {
                         format!("{base_mirror}{href}")
                     };
-                    match fetch_detail_magnet(&client, &detail_url, detail_sel.as_deref(), detail_fallback.as_deref()).await {
+                    match fetch_detail_magnet(&client, &detail_url, detail_sel.as_deref(), detail_fallback.as_deref(), auth_cookie.as_deref()).await {
                         Ok(m) => m,
                         Err(_) => return None,
                     }
@@ -247,12 +266,17 @@ fn fold_category_hint(r: &mut TorrentResult, category: &str) {
 }
 
 async fn fetch_detail_magnet(
-    client:   &reqwest::Client,
-    url:      &str,
-    primary:  Option<&str>,
-    fallback: Option<&str>,
+    client:      &reqwest::Client,
+    url:         &str,
+    primary:     Option<&str>,
+    fallback:    Option<&str>,
+    auth_cookie: Option<&str>,
 ) -> Result<String> {
-    let html = get_html(client, url, &Default::default()).await?;
+    let mut headers = std::collections::HashMap::new();
+    if let Some(cookie) = auth_cookie {
+        headers.insert("Cookie".to_string(), cookie.to_string());
+    }
+    let html = get_html(client, url, &headers).await?;
     let doc  = Html::parse_document(&html);
 
     if let Some(sel_str) = primary {
@@ -350,13 +374,24 @@ async fn get_html(
 }
 
 async fn get_html_with_fallback(
-    client: &reqwest::Client,
-    config: &SiteConfig,
-    path:   &str,
+    client:      &reqwest::Client,
+    config:      &SiteConfig,
+    path:        &str,
+    auth_cookie: Option<&str>,
 ) -> Result<String> {
+    // Merge the site's static config headers with the runtime auth
+    // cookie, rather than passing them separately — this is the ONE
+    // place a private site's request headers and its per-user cookie
+    // come together into a single header set, cloned once per mirror
+    // attempt rather than mutating config.request.headers itself.
+    let mut headers = config.request.headers.clone();
+    if let Some(cookie) = auth_cookie {
+        headers.insert("Cookie".to_string(), cookie.to_string());
+    }
+
     for mirror in &config.mirrors {
         let url = format!("{mirror}{path}");
-        match get_html(client, &url, &config.request.headers).await {
+        match get_html(client, &url, &headers).await {
             Ok(html) => return Ok(html),
             Err(e) => log::warn!("[{}] mirror {mirror} failed: {e}", config.display_name),
         }

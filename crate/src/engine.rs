@@ -22,7 +22,20 @@
 // keep hand-written modules under crate::special, but still pull their
 // mirror list from the registry's `special_sites` block, so a dead
 // domain there is still fixable without a release.
+//
+// PRIVATE TRACKER SUPPORT (2026-07-25): every search_*() function below
+// now takes an `auth: &dyn AuthProvider` parameter (see dispatch.rs),
+// threaded straight through to crate::dispatch::search_site/search_sites
+// — which is the ONLY place a cookie actually gets looked up, and only
+// for sites whose SiteConfig declares it needs one. Nothing in this
+// file branches on site identity for auth purposes; a private tracker
+// added to the registry JSON with an `auth` block "just works" through
+// the exact same DEDICATED_IDS/generic-dispatch path every public site
+// already uses, with zero changes needed here. crate::dispatch::NoAuth
+// is available for callers (examples/, some validator runs) that don't
+// need private-tracker support at all.
 
+use crate::dispatch::AuthProvider;
 use crate::registry::IndexerRegistry;
 use crate::types::TorrentResult;
 
@@ -52,6 +65,7 @@ async fn with_1337x_fallback(
     registry: &IndexerRegistry,
     query: &str,
     existing: Vec<TorrentResult>,
+    auth: &dyn AuthProvider,
 ) -> Vec<TorrentResult> {
     if existing.len() >= FALLBACK_MIN_RESULTS {
         return existing;
@@ -62,7 +76,7 @@ async fn with_1337x_fallback(
         query
     );
     let mut merged = existing;
-    merged.extend(crate::dispatch::search_site(client, registry, "x1337x", query, None).await);
+    merged.extend(crate::dispatch::search_site(client, registry, "x1337x", query, None, auth).await);
     merged
 }
 
@@ -84,12 +98,13 @@ pub async fn search_dubbed(
     registry: &IndexerRegistry,
     query: &str,
     _imdb_id: Option<&str>,
+    auth: &dyn AuthProvider,
 ) -> Vec<TorrentResult> {
-    let raw = crate::dispatch::search_sites(client, registry, &DEDICATED_IDS, query, None).await;
+    let raw = crate::dispatch::search_sites(client, registry, &DEDICATED_IDS, query, None, auth).await;
 
     let tagged: Vec<TorrentResult> = raw.iter().cloned().filter(|r| r.is_dubbed()).collect();
 
-    let after_1337x = with_1337x_fallback(client, registry, query, tagged).await;
+    let after_1337x = with_1337x_fallback(client, registry, query, tagged, auth).await;
     let tagged_final: Vec<TorrentResult> =
         after_1337x.iter().cloned().filter(|r| r.is_dubbed()).collect();
 
@@ -101,7 +116,7 @@ pub async fn search_dubbed(
         "[search_dubbed] no dub-tagged results for \"{}\" — falling back to untagged matches",
         query
     );
-    let mut untagged = with_1337x_fallback(client, registry, query, raw).await;
+    let mut untagged = with_1337x_fallback(client, registry, query, raw, auth).await;
     untagged.extend(search_eztvco(client, query).await);
     for r in &mut untagged {
         r.is_confirmed_dub = false;
@@ -111,7 +126,8 @@ pub async fn search_dubbed(
 
 /// Best-effort call into eztvco. Strips quality/dub-language noise
 /// before searching, since eztvco's own search engine works on the bare
-/// title.
+/// title. eztvco is a public site with no auth block, so this
+/// intentionally does not take an AuthProvider — nothing to look up.
 async fn search_eztvco(client: &reqwest::Client, query: &str) -> Vec<TorrentResult> {
     let noise_re = regex::Regex::new(
         r"(?i)\b(1080p|720p|480p|2160p|4k|bluray|web-dl|webrip|hdtv|dubbed|dub|hindi|tamil|telugu|bengali|kannada|malayalam|marathi|korean|chinese|turkish|dual audio|multi audio|s\d{2}e?\d{0,2})\b"
@@ -132,10 +148,11 @@ pub async fn search_all(
     client: &reqwest::Client,
     registry: &IndexerRegistry,
     query: &str,
+    auth: &dyn AuthProvider,
 ) -> Vec<TorrentResult> {
-    let mut merged = crate::dispatch::search_sites(client, registry, &DEDICATED_IDS, query, None).await;
+    let mut merged = crate::dispatch::search_sites(client, registry, &DEDICATED_IDS, query, None, auth).await;
     merged.extend(search_eztvco(client, query).await);
-    let merged = with_1337x_fallback(client, registry, query, merged).await;
+    let merged = with_1337x_fallback(client, registry, query, merged, auth).await;
     dedupe_and_sort(merged)
 }
 
@@ -184,13 +201,14 @@ pub async fn search_dubbed_json(
     registry: &IndexerRegistry,
     query: &str,
     imdb_id: Option<&str>,
+    auth: &dyn AuthProvider,
 ) -> String {
-    let results = search_dubbed(client, registry, query, imdb_id).await;
+    let results = search_dubbed(client, registry, query, imdb_id, auth).await;
     serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string())
 }
 
-pub async fn search_all_json(client: &reqwest::Client, registry: &IndexerRegistry, query: &str) -> String {
-    let results = search_all(client, registry, query).await;
+pub async fn search_all_json(client: &reqwest::Client, registry: &IndexerRegistry, query: &str, auth: &dyn AuthProvider) -> String {
+    let results = search_all(client, registry, query, auth).await;
     serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string())
 }
 
@@ -200,8 +218,9 @@ pub async fn search_drama(
     client: &reqwest::Client,
     registry: &IndexerRegistry,
     query: &str,
+    auth: &dyn AuthProvider,
 ) -> Vec<TorrentResult> {
-    let mut merged = crate::dispatch::search_sites(client, registry, &DEDICATED_IDS, query, None).await;
+    let mut merged = crate::dispatch::search_sites(client, registry, &DEDICATED_IDS, query, None, auth).await;
 
     if is_special_site_enabled(registry, "torrentsome") {
         let mirrors = special_mirrors(registry, "torrentsome");
@@ -214,7 +233,7 @@ pub async fn search_drama(
 
     merged.extend(search_eztvco(client, query).await);
 
-    let merged = with_1337x_fallback(client, registry, query, merged).await;
+    let merged = with_1337x_fallback(client, registry, query, merged, auth).await;
     dedupe_and_sort(merged)
 }
 
@@ -222,23 +241,34 @@ pub async fn search_drama_english(
     client: &reqwest::Client,
     registry: &IndexerRegistry,
     query: &str,
+    auth: &dyn AuthProvider,
 ) -> Vec<TorrentResult> {
-    let mut results = search_drama(client, registry, query).await;
+    let mut results = search_drama(client, registry, query, auth).await;
     results.retain(|r| r.audio_tags.iter().any(|t| t == "English Dub" || t == "English Sub"));
     results
 }
 
-pub async fn search_drama_json(client: &reqwest::Client, registry: &IndexerRegistry, query: &str) -> String {
-    let results = search_drama(client, registry, query).await;
+pub async fn search_drama_json(client: &reqwest::Client, registry: &IndexerRegistry, query: &str, auth: &dyn AuthProvider) -> String {
+    let results = search_drama(client, registry, query, auth).await;
     serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string())
 }
 
 // ── Anime ────────────────────────────────────────────────────────────────
+//
+// Anime sources (nyaa, tokyotosho) are special-cased public sites with
+// no auth block — AuthProvider isn't threaded into their calls, since
+// there's nothing for them to look up. torrentdownload IS a generic
+// dispatch site though, so it takes `auth` like any DEDICATED_IDS site
+// would (currently always None in practice since torrentdownload has
+// no auth block either, but the call site stays consistent with every
+// other crate::dispatch::search_site call rather than special-casing
+// "this one never needs it").
 
 pub async fn search_anime_english(
     client: &reqwest::Client,
     registry: &IndexerRegistry,
     query: &str,
+    auth: &dyn AuthProvider,
 ) -> Vec<TorrentResult> {
     let mut merged = Vec::new();
 
@@ -247,7 +277,7 @@ pub async fn search_anime_english(
         merged.extend(crate::special::nyaa::search_english(client, &mirrors, query).await);
     }
 
-    let td_results = crate::dispatch::search_site(client, registry, "torrentdownload", query, None).await;
+    let td_results = crate::dispatch::search_site(client, registry, "torrentdownload", query, None, auth).await;
     merged.extend(td_results.into_iter().filter(|r| r.title.to_lowercase().contains("anime")));
 
     if is_special_site_enabled(registry, "tokyotosho") {
@@ -256,7 +286,7 @@ pub async fn search_anime_english(
         merged.extend(tokyo_results.into_iter().filter(|r| !r.title.to_lowercase().contains("raw]")));
     }
 
-    let merged = with_1337x_fallback(client, registry, query, merged).await;
+    let merged = with_1337x_fallback(client, registry, query, merged, auth).await;
     let merged: Vec<TorrentResult> = merged
         .into_iter()
         .filter(|r| {
@@ -296,8 +326,8 @@ pub async fn search_anime_all(
     dedupe_and_sort(results)
 }
 
-pub async fn search_anime_english_json(client: &reqwest::Client, registry: &IndexerRegistry, query: &str) -> String {
-    let results = search_anime_english(client, registry, query).await;
+pub async fn search_anime_english_json(client: &reqwest::Client, registry: &IndexerRegistry, query: &str, auth: &dyn AuthProvider) -> String {
+    let results = search_anime_english(client, registry, query, auth).await;
     serde_json::to_string(&results).unwrap_or_else(|_| "[]".to_string())
 }
 

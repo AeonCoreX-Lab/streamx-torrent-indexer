@@ -11,7 +11,13 @@
 //! # async fn example() {
 //! let registry = streamx_indexer::registry::load_embedded();
 //! let client = reqwest::Client::new();
-//! let results = streamx_indexer::engine::search_all(&client, &registry, "some movie 2024").await;
+//! // NoAuth is fine here — it's a public site, this crate never looks
+//! // up a cookie for anything unless that site's own config says it
+//! // needs one. See dispatch::AuthProvider's doc comment for how a
+//! // real app plugs in private-tracker cookie storage instead.
+//! let results = streamx_indexer::engine::search_all(
+//!     &client, &registry, "some movie 2024", &streamx_indexer::dispatch::NoAuth
+//! ).await;
 //! # }
 //! ```
 //!
