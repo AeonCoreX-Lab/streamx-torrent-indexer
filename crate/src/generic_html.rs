@@ -404,9 +404,7 @@ fn extract_querystring_param(href: &str, param: &str) -> Option<String> {
     let query_start = href.find('?')? + 1;
     let query = &href[query_start..];
     for pair in query.split('&') {
-        let mut parts = pair.splitn(2, '=');
-        let key = parts.next()?;
-        let val = parts.next()?;
+        let (key, val) = pair.split_once('=')?;
         if key == param {
             return urlencoding::decode(val).ok().map(|s| s.into_owned());
         }

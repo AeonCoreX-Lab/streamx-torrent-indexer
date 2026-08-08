@@ -196,7 +196,7 @@ async fn fetch_and_parse(
 
 /// Follow a dotted path (e.g. "data.items") to find the results array.
 /// An empty path means the response body itself is the array.
-fn navigate_to_array<'a>(body: &'a Value, path: &str) -> Result<Vec<Value>> {
+fn navigate_to_array(body: &Value, path: &str) -> Result<Vec<Value>> {
     if path.is_empty() {
         return body.as_array().cloned()
             .ok_or_else(|| anyhow::anyhow!("response body is not a JSON array"));

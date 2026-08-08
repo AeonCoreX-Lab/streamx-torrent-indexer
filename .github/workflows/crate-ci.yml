@@ -74,13 +74,24 @@ jobs:
       - name: cargo test (whole workspace)
         run: cargo test --workspace --all-targets
 
-      - name: cargo clippy (whole workspace, warnings do not fail the build)
-        run: cargo clippy --workspace --all-targets -- -D warnings || true
-        # `|| true`: clippy lints are a code-quality signal, not a
-        # correctness gate the way check/build/test above are — a false
-        # positive or a stylistic lint shouldn't block a merge the same
-        # way a genuine compile error should. Its output still appears
-        # in the log for a human to look at.
+      - name: cargo clippy (whole workspace, advisory only)
+        run: cargo clippy --workspace --all-targets
+        continue-on-error: true
+        # Advisory, not a gate: clippy lints are a code-quality signal,
+        # not a correctness check the way check/build/test above are —
+        # a stylistic lint shouldn't block a merge the same way a
+        # genuine compile error should. `continue-on-error: true` (not
+        # `-D warnings` piped to `|| true`) is deliberate: `-D warnings`
+        # turns every lint into a hard compile error and stops at the
+        # first handful, which both looks exactly like a real build
+        # failure in the log (confusing, since this step isn't supposed
+        # to be one) AND hides every lint after the first few instead of
+        # reporting the full picture. Plain `cargo clippy` prints every
+        # warning it finds, in yellow, and this step is still marked
+        # green in the Actions UI either way (continue-on-error still
+        # shows a warning triangle if it ever does hard-fail, so a
+        # genuine problem — clippy itself crashing, not just a lint
+        # firing — is still visible, just not blocking).
 
   # A minimal reproduction of exactly how StreamX Ultra actually
   # consumes this repo: a throwaway crate with `streamx-indexer = {

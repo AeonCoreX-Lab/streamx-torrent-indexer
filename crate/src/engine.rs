@@ -198,7 +198,7 @@ fn dedupe_and_sort(mut results: Vec<TorrentResult>) -> Vec<TorrentResult> {
         seen_signature.insert(sig)
     });
 
-    results.sort_by(|a, b| b.seeds.cmp(&a.seeds));
+    results.sort_by_key(|r| std::cmp::Reverse(r.seeds));
     results
 }
 

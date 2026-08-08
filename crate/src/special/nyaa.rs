@@ -76,7 +76,7 @@ async fn fetch_category(
     };
 
     let mut results = fetch_results(client, &effective_mirrors, &path, tag_hint).await.unwrap_or_default();
-    results.sort_by(|a, b| b.seeds.cmp(&a.seeds));
+    results.sort_by_key(|r| std::cmp::Reverse(r.seeds));
     results
 }
 
