@@ -102,6 +102,12 @@
         "row": { "type": "string" },
         "title": { "type": "string" },
         "title_attr": { "type": "string", "default": "text" },
+        "download_type": {
+          "type": "string",
+          "enum": ["magnet", "torrent_file"],
+          "default": "magnet",
+          "description": "\"magnet\" (default) = magnet_* / detail_magnet_selector fields below extract a real magnet: URI, exactly as before. \"torrent_file\" = this site has no magnet on the page at all — the SAME selector fields point at an authenticated .torrent download link instead (the norm for private trackers); the engine writes the extracted URL into TorrentResult::torrent_file_url instead of ::magnet."
+        },
         "magnet": { "type": ["string", "null"] },
         "magnet_attr": { "type": ["string", "null"] },
         "magnet_querystring_param": { "type": ["string", "null"] },
