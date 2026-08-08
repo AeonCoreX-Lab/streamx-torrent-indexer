@@ -9,35 +9,35 @@
   "origin": {
     "jackett_id": "myspleen",
     "kind": "jackett",
-    "last_verified": "2026-08-07T05:49:39Z"
+    "last_verified": "2026-08-08T04:14:18Z"
   },
   "pages": 1,
   "request": {
+    "auth": {
+      "instructions": "Log in with your MySpleen account in the window that opens — the app captures your session automatically once login succeeds. Nothing you type is seen or stored by this app.",
+      "login_check_path": "/browse.php",
+      "login_check_selector": "span.key:contains(\"Ratio\")",
+      "method": "cookie"
+    },
     "delay_ms": 1500,
     "headers": {
       "Accept": "text/html,application/xhtml+xml",
       "Accept-Language": "en-US,en;q=0.9"
-    },
-    "auth": {
-      "method": "cookie",
-      "instructions": "Log in with your MySpleen account in the window that opens — the app captures your session automatically once login succeeds. Nothing you type is seen or stored by this app.",
-      "login_check_path": "/browse.php",
-      "login_check_selector": "span.key:contains(\"Ratio\")"
     }
   },
   "search_path": "/browse.php?search={query}&incldead=1&title=0",
   "selectors": {
-    "row": "table#main-torrents > tbody > tr:has(td.tor-name > a)",
-    "title": "td.tor-name > a",
-    "title_attr": "title",
     "download_type": "torrent_file",
-    "magnet_location": "listing",
     "magnet": "td.tor-down > a",
     "magnet_attr": "href",
-    "size": "td:nth-child(8)",
+    "magnet_location": "listing",
+    "peers": "td:nth-child(11)",
+    "peers_index": 0,
+    "row": "table#main-torrents > tbody > tr:has(td.tor-name > a)",
     "seeds": "td:nth-child(10)",
     "seeds_index": 0,
-    "peers": "td:nth-child(11)",
-    "peers_index": 0
+    "size": "td:nth-child(8)",
+    "title": "td.tor-name > a",
+    "title_attr": "title"
   }
 }
