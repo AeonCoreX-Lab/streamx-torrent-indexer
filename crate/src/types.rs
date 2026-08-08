@@ -8,11 +8,46 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TorrentResult {
     pub title:      String,
+    /// Full magnet: URI. Empty ("") when this result instead uses
+    /// `torrent_file_url` below — every public source (all 8 verified
+    /// sites as of this field's addition) still fills this in as
+    /// before; only private trackers with no magnet on their listing
+    /// page use the alternative path.
     pub magnet:     String,
+    /// Set instead of `magnet` for sites whose listing page only offers
+    /// a `.torrent` file download link, not a magnet URI — this is the
+    /// norm for private trackers (HD-Torrents, MySpleen, TorrentBD,
+    /// etc. all work this way; it's how they track ratio/membership on
+    /// every download, not an oversight). Fetching this URL requires
+    /// the SAME per-user session cookie used for the search itself —
+    /// see requires_torrent_auth below. The engine only ever fills this
+    /// in for HtmlSelectors::download_type == "torrent_file"; it never
+    /// invents one.
+    #[serde(default)]
+    pub torrent_file_url: Option<String>,
+    /// True when torrent_file_url is set AND the site this came from
+    /// requires an auth cookie (SiteConfig::requires_auth()) — meaning
+    /// the caller must attach that same cookie as a Cookie header when
+    /// fetching torrent_file_url, or the download will 403/redirect to
+    /// a login page instead of returning .torrent bytes. Always false
+    /// when magnet is set (magnets need no further authenticated fetch
+    /// once returned — the tracker's tracking hook is the .torrent file
+    /// download itself, which magnet-only results skip entirely).
+    #[serde(default)]
+    pub requires_torrent_auth: bool,
     pub size:       String,
     pub seeds:      u32,
     pub peers:      u32,
     pub source:     String,
+    /// The registry's SiteConfig.id (e.g. "hdtorrents"), NOT the
+    /// display name in `source` above. Only meaningful/non-empty when
+    /// `requires_torrent_auth` is true — that's the id the app's
+    /// PrivateTrackerCookieStore is keyed by, needed to look up which
+    /// cookie to attach when fetching `torrent_file_url`. Empty for
+    /// every public, non-authenticated source (magnet results never
+    /// need this lookup).
+    #[serde(default)]
+    pub site_id:    String,
     pub audio_tags: Vec<String>,
     pub quality:    String,
     /// True when this result was returned because it carried a
@@ -35,10 +70,13 @@ impl Default for TorrentResult {
         Self {
             title: String::new(),
             magnet: String::new(),
+            torrent_file_url: None,
+            requires_torrent_auth: false,
             size: String::new(),
             seeds: 0,
             peers: 0,
             source: String::new(),
+            site_id: String::new(),
             audio_tags: Vec::new(),
             quality: String::new(),
             // Defaults to true: every call site that builds a
@@ -147,6 +185,15 @@ impl TorrentResult {
         .to_string();
     }
 
+    /// Whether this release has any detected audio/dub tag (see
+    /// parse_tags() below, which populates audio_tags from the title).
+    /// NOT used by engine.rs's search_*() functions as a server-side
+    /// filter anymore (see search_dubbed's doc comment, 2026-07-25) —
+    /// every search returns dubbed and non-dubbed results together, this
+    /// method exists purely as a convenience for a caller doing its own
+    /// client-side filtering/sorting/badging over an already-returned
+    /// result set (e.g. the app grouping results by audio_tags in its
+    /// own UI).
     pub fn is_dubbed(&self) -> bool {
         !self.audio_tags.is_empty()
     }

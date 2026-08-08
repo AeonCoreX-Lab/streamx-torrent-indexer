@@ -36,10 +36,11 @@ pub async fn search(
     };
 
     let path = build_path(config, query, imdb_id);
+    let body = build_body(config, query);
 
     for mirror in &config.mirrors {
         let url = format!("{mirror}{path}");
-        match fetch_and_parse(client, config, fields, &url, auth_cookie).await {
+        match fetch_and_parse(client, config, fields, &url, body.as_deref(), auth_cookie).await {
             Ok(results) if !results.is_empty() => return results,
             Ok(_) => continue, // empty, try next mirror
             Err(e) => log::warn!("[{site_id}] mirror {mirror} failed: {e}"),
@@ -66,6 +67,28 @@ fn build_path(config: &SiteConfig, query: &str, imdb_id: Option<&str>) -> String
             config.search_path.replace("{query}", &q)
         }
     }
+}
+
+/// See generic_html.rs's build_body doc comment — identical contract
+/// here: {query}/{page} substitution into search_body, only when
+/// search_method == Post. JSON sites don't currently template {page}
+/// into the body (none of the ported ones paginate via POST), but the
+/// substitution is harmless if a future config includes it.
+fn build_body(config: &SiteConfig, query: &str) -> Option<String> {
+    if config.search_method != crate::schema::SearchMethod::Post {
+        return None;
+    }
+    let template = config.search_body.as_ref()?;
+    let cleaned = if config.json_fields.as_ref()
+        .map(|f| f.apply_tpb_query_cleanup)
+        .unwrap_or(false)
+    {
+        clean_tpb_query(query)
+    } else {
+        query.to_string()
+    };
+    let q = urlencoding::encode(&cleaned);
+    Some(template.replace("{query}", &q))
 }
 
 /// Port of thepiratebay.yml's keywordsfilters — apibay's search engine
@@ -139,9 +162,15 @@ async fn fetch_and_parse(
     config:      &SiteConfig,
     fields:      &crate::schema::JsonFields,
     url:         &str,
+    body:        Option<&str>,
     auth_cookie: Option<&str>,
 ) -> Result<Vec<TorrentResult>> {
-    let mut req = client.get(url);
+    let mut req = match body {
+        Some(b) => client.post(url)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(b.to_string()),
+        None => client.get(url),
+    };
     for (k, v) in &config.request.headers {
         req = req.header(k.as_str(), v.as_str());
     }
@@ -153,8 +182,8 @@ async fn fetch_and_parse(
         anyhow::bail!("HTTP {} for {url}", resp.status());
     }
 
-    let body: Value = resp.json().await?;
-    let array = navigate_to_array(&body, &fields.results_array)?;
+    let json: Value = resp.json().await?;
+    let array = navigate_to_array(&json, &fields.results_array)?;
 
     let mut results = Vec::new();
     for item in array {

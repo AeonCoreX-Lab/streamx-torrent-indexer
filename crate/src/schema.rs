@@ -51,6 +51,22 @@ pub struct SiteConfig {
     pub mirrors: Vec<String>,
     pub search_path: String,
 
+    /// HTTP method for the search request. Defaults to GET (every
+    /// existing source before this field was added). Some Cardigann
+    /// definitions ported from Jackett submit search params as a POST
+    /// body instead of a query string (e.g. TorrentBD's ajgettorrents.php)
+    /// — for those, set this to "post" and provide `search_body`.
+    #[serde(default)]
+    pub search_method: SearchMethod,
+
+    /// POST body template, used only when search_method == "post".
+    /// Same placeholder substitution as search_path ({query}, {page}),
+    /// applied after url-encoding {query} the same way. Content-Type is
+    /// always application/x-www-form-urlencoded — every Cardigann POST
+    /// search body observed so far is plain form-encoded, not JSON.
+    #[serde(default)]
+    pub search_body: Option<String>,
+
     /// Mirrors that must NEVER be written into `mirrors[]` by
     /// tools/jackett-sync, even though Jackett's own upstream `links:`
     /// still lists them. Exists for domains confirmed genuinely dead
@@ -160,6 +176,19 @@ pub enum SiteKind {
     Json,
 }
 
+/// HTTP method used for the search request itself. Most sites (every
+/// public source so far) are Get — search params go in the URL, built
+/// from `search_path`. Post is for Cardigann definitions whose search
+/// endpoint expects a form-encoded POST body instead (see
+/// SiteConfig::search_body).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SearchMethod {
+    #[default]
+    Get,
+    Post,
+}
+
 /// CSS selector set for an HTML-scraped site. Fields are plain strings
 /// so they can be edited in JSON without touching Rust code;
 /// `Selector::parse()` is called at request time, not at deploy time,
@@ -172,6 +201,22 @@ pub struct HtmlSelectors {
     /// attribute.
     #[serde(default = "default_text")]
     pub title_attr: String,
+
+    /// "magnet" (default) = this site's listing exposes a real magnet:
+    /// URI, extracted via the magnet_* fields below exactly as before.
+    /// "torrent_file" = this site has NO magnet on the page at all —
+    /// only a link to download a .torrent file (the norm for private
+    /// trackers, which use that download hit to track ratio/membership).
+    /// In that mode, the SAME selector fields below (magnet /
+    /// magnet_attr, or detail_link / detail_magnet_selector) are reused
+    /// to point at the .torrent download link instead of a magnet —
+    /// the field names stay the same to avoid doubling every selector
+    /// field just for this, but the extracted URL is written into
+    /// TorrentResult::torrent_file_url instead of ::magnet, and
+    /// requires_torrent_auth is set to whatever
+    /// SiteConfig::requires_auth() returns for this site.
+    #[serde(default = "default_download_type")]
+    pub download_type: String,
 
     // Listing-page magnet (used when magnet_location == "listing")
     #[serde(default)]
@@ -220,6 +265,7 @@ pub struct HtmlSelectors {
 }
 
 fn default_text() -> String { "text".to_string() }
+fn default_download_type() -> String { "magnet".to_string() }
 fn default_listing() -> String { "listing".to_string() }
 fn default_title_fallback_segment() -> usize { 3 }
 
@@ -289,25 +335,30 @@ pub struct RequestConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AuthConfig {
     /// "cookie" is the only method the engine implements right now — the
-    /// app shows the user this site needs a cookie, they copy one out of
-    /// their own browser's dev tools after logging into the tracker
-    /// normally, and paste it in. See the app-side
-    /// PrivateTrackerCookieStore for that flow.
+    /// app shows the user a real login page for this site inside an
+    /// in-app WebView, they log in exactly as they would in a normal
+    /// browser, and the app captures the resulting session cookie
+    /// automatically once login succeeds (via Android's CookieManager —
+    /// see the app-side TrackerLoginScreen). The user never types
+    /// anything into this app's own UI, and no password is ever seen or
+    /// stored by it — only the cookie a real login already produced.
+    /// See PrivateTrackerCookieStore for where that cookie ends up.
     ///
     /// Jackett's own login methods for private trackers also include
-    /// "post" and "form" (automating the login itself, username/password
-    /// in hand) — NOT implemented here yet. Deliberately starting with
-    /// the safer subset: this app never needs to see or store a
-    /// tracker password, only whatever cookie a REAL login (that the
-    /// user performed themselves, in their own browser or the in-app
-    /// WebView) already produced.
+    /// "post" and "form" (submitting username/password to the tracker
+    /// programmatically, without a visible page) — NOT implemented here.
+    /// Deliberately staying with the safer, visible-WebView-login
+    /// approach: this app never automates typing a tracker password
+    /// anywhere, it only ever captures a cookie from a login the user
+    /// performed themselves, on the tracker's own real page.
     pub method: AuthMethod,
 
-    /// Human-readable hint shown in the app's "how do I get this?" UI
-    /// for this specific site — e.g. "Log in, then copy the value of the
-    /// `uid` and `pass` cookies from DevTools → Application → Cookies."
-    /// Free text because every tracker's own instructions differ enough
-    /// that a single generic message isn't actually helpful.
+    /// Human-readable hint shown above the login WebView for this
+    /// specific site — e.g. "Log in with your account below. We'll
+    /// detect when you're signed in automatically." Free text because
+    /// every tracker's own quirks (2FA, a captcha, an unusual login
+    /// path) differ enough that a single generic message isn't always
+    /// enough context for the user.
     #[serde(default)]
     pub instructions: String,
 

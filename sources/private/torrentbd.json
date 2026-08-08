@@ -1,0 +1,48 @@
+{
+  "display_name": "TorrentBD",
+  "enabled": true,
+  "id": "torrentbd",
+  "kind": "html",
+  "mirrors": [
+    "https://www.torrentbd.net",
+    "https://www.torrentbd.org"
+  ],
+  "origin": {
+    "jackett_id": "torrentbd",
+    "kind": "jackett",
+    "last_verified": "2026-08-07T05:49:39Z"
+  },
+  "pages": 1,
+  "request": {
+    "delay_ms": 1500,
+    "headers": {
+      "Accept": "text/html, */*; q=0.01",
+      "Accept-Language": "en-US,en;q=0.9",
+      "X-Requested-With": "XMLHttpRequest",
+      "Referer": "https://www.torrentbd.net/index.php?initK&all"
+    },
+    "auth": {
+      "method": "cookie",
+      "instructions": "Log in with your TorrentBD account in the window that opens — the app captures your session automatically once login succeeds. Nothing you type is seen or stored by this app.",
+      "login_check_path": "/",
+      "login_check_selector": "button[href=\"account-logout.php\"]"
+    }
+  },
+  "search_method": "post",
+  "search_path": "/ajgettorrents.php",
+  "search_body": "page=1&origin=home&sortBy=&query={query}&fl=false&intrls=false&active=false&spcat=",
+  "selectors": {
+    "row": "table.torrents-table > tbody > tr:has(a[href^=\"torrents-details.php?id=\"])",
+    "title": "a[href^=\"torrents-details.php?id=\"]",
+    "title_attr": "text",
+    "download_type": "torrent_file",
+    "magnet_location": "listing",
+    "magnet": "a[href*=\"download.php?id=\"]",
+    "magnet_attr": "href",
+    "size": "td:nth-child(6)",
+    "seeds": "td:nth-child(7)",
+    "seeds_index": 0,
+    "peers": "td:nth-child(8)",
+    "peers_index": 0
+  }
+}

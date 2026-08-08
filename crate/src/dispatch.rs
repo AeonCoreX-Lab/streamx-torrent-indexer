@@ -107,3 +107,57 @@ pub async fn search_sites(
     let results = futures::future::join_all(futures).await;
     results.into_iter().flatten().collect()
 }
+
+/// Every registry site id that should participate in a "search
+/// everything generic" pass — every enabled site in `registry.sites`
+/// EXCEPT `exclude` (the caller's special-cased ids, e.g. any id that
+/// also has hand-written scraping logic under crate::special and is
+/// called separately, or a site the caller is already querying by name
+/// for a different reason).
+///
+/// This is what replaced engine.rs's old `const DEDICATED_IDS: [&str; 7]`
+/// (fixed 2026-07-25): that array had to be hand-edited every time a
+/// public site JSON was added to sources/verified/ or sources/community/
+/// — a new site would sit in the registry, fully valid and CI-verified,
+/// but silently never get searched until someone remembered to add its
+/// id to that array too. Deriving the list from the registry itself
+/// means adding a new site JSON is now sufficient on its own — no
+/// engine.rs change needed, which was the actual point of moving sites
+/// to individual JSON files under sources/ in the first place.
+///
+/// Private trackers work through this exact same path: a site with an
+/// `auth` block is not excluded here just because it needs a cookie —
+/// search_site() (called per id from search_sites_dynamic below) checks
+/// requires_auth() and asks the caller's AuthProvider itself. A private
+/// tracker the user hasn't configured yet simply returns zero results
+/// via that path (see search_site's own doc comment), same as it would
+/// if it were still hardcoded — the only thing this function changes is
+/// whether the id reaches search_site() at all.
+pub fn dynamic_site_ids(registry: &IndexerRegistry, exclude: &[&str]) -> Vec<String> {
+    registry
+        .sites
+        .iter()
+        .filter(|(id, cfg)| cfg.enabled && !exclude.contains(&id.as_str()))
+        .map(|(id, _)| id.clone())
+        .collect()
+}
+
+/// Same as search_sites, but takes owned `Vec<String>` ids — the shape
+/// dynamic_site_ids() returns, since a registry-derived list can't
+/// borrow `&str` with a lifetime any of engine.rs's callers could
+/// satisfy (the HashMap it's built from is a local temporary in most
+/// call sites). Functionally identical otherwise.
+pub async fn search_sites_dynamic(
+    client: &reqwest::Client,
+    registry: &IndexerRegistry,
+    site_ids: &[String],
+    query: &str,
+    imdb_id: Option<&str>,
+    auth: &dyn AuthProvider,
+) -> Vec<TorrentResult> {
+    let futures = site_ids
+        .iter()
+        .map(|id| search_site(client, registry, id.as_str(), query, imdb_id, auth));
+    let results = futures::future::join_all(futures).await;
+    results.into_iter().flatten().collect()
+}

@@ -40,7 +40,8 @@ pub async fn search(
 
     for page in 1..=config.pages.max(1) {
         let path = build_path(config, query, imdb_id, page);
-        match fetch_and_parse_page(client, site_id, config, &path, auth_cookie).await {
+        let body = build_body(config, query, page);
+        match fetch_and_parse_page(client, site_id, config, &path, body.as_deref(), auth_cookie).await {
             Ok(mut results) => all_results.append(&mut results),
             Err(e) => {
                 log::warn!("[{site_id}] page {page} failed: {e}");
@@ -69,14 +70,31 @@ fn build_path(config: &SiteConfig, query: &str, imdb_id: Option<&str>, page: u32
     template.replace("{page}", &page.to_string())
 }
 
+/// Builds the POST body for this search, if the site is configured for
+/// one — same {query}/{page} placeholder substitution as build_path,
+/// applied to `search_body` instead of `search_path`. Returns None for
+/// any GET site (the common case) or a POST site missing search_body
+/// (a config error, but this just falls back to no body rather than
+/// panicking — the request will likely come back empty/login-walled,
+/// which surfaces as a normal "zero results" for that site).
+fn build_body(config: &SiteConfig, query: &str, page: u32) -> Option<String> {
+    if config.search_method != crate::schema::SearchMethod::Post {
+        return None;
+    }
+    let template = config.search_body.as_ref()?;
+    let q = urlencoding::encode(query);
+    Some(template.replace("{query}", &q).replace("{page}", &page.to_string()))
+}
+
 async fn fetch_and_parse_page(
     client:      &reqwest::Client,
     site_id:     &str,
     config:      &SiteConfig,
     path:        &str,
+    body:        Option<&str>,
     auth_cookie: Option<&str>,
 ) -> Result<Vec<TorrentResult>> {
-    let html = get_html_with_fallback(client, config, path, auth_cookie).await?;
+    let html = get_html_with_fallback(client, config, path, body, auth_cookie).await?;
     parse_html(client, site_id, config, &html, auth_cookie).await
 }
 
@@ -111,10 +129,16 @@ async fn parse_html(
         seeds:  u32,
         peers:  u32,
         category: Option<String>,
-        magnet_or_detail: MagnetOrDetail,
+        magnet_or_detail: ResolvedOrDetail,
     }
-    enum MagnetOrDetail {
-        Magnet(String),
+    // Named generically ("Resolved", not "Magnet") because this same
+    // path now serves both magnet mode and torrent_file mode — a
+    // listing-page magnet_sel match, or a resolved detail-page href,
+    // either one is just "the URL string this row points at"; whether
+    // it means "magnet URI" or "authenticated .torrent download link"
+    // is decided by HtmlSelectors::download_type, not by this enum.
+    enum ResolvedOrDetail {
+        Resolved(String),
         DetailUrl(String),
     }
 
@@ -168,12 +192,12 @@ async fn parse_html(
                 },
                 None => raw_attr_value.to_string(),
             };
-            MagnetOrDetail::Magnet(resolved)
+            ResolvedOrDetail::Resolved(resolved)
         } else {
             let dsel = match &detail_link_sel { Some(s) => s, None => continue };
             let attr = sel.detail_link_attr.as_deref().unwrap_or("href");
             match row.select(dsel).next().and_then(|e| e.value().attr(attr)) {
-                Some(href) => MagnetOrDetail::DetailUrl(href.to_string()),
+                Some(href) => ResolvedOrDetail::DetailUrl(href.to_string()),
                 None => continue,
             }
         };
@@ -187,6 +211,9 @@ async fn parse_html(
     let min_seeds = config.request.min_seeds_for_detail_fetch.unwrap_or(0);
     let base_mirror = config.mirrors.first().cloned().unwrap_or_default();
 
+    let requires_auth = config.requires_auth();
+    let is_torrent_file_mode = sel.download_type == "torrent_file";
+
     let futures = metas.into_iter().map(|meta| {
         let client = client.clone();
         let base_mirror = base_mirror.clone();
@@ -197,32 +224,58 @@ async fn parse_html(
         // reasoning as client/base_mirror/detail_sel above.
         let auth_cookie = auth_cookie.map(|c| c.to_string());
         async move {
-            let magnet = match meta.magnet_or_detail {
-                MagnetOrDetail::Magnet(m) => m,
-                MagnetOrDetail::DetailUrl(href) => {
+            let resolved_url = match meta.magnet_or_detail {
+                ResolvedOrDetail::Resolved(m) => m,
+                ResolvedOrDetail::DetailUrl(href) => {
                     if meta.seeds < min_seeds { return None; }
                     let detail_url = if href.starts_with("http") {
                         href
                     } else {
                         format!("{base_mirror}{href}")
                     };
-                    match fetch_detail_magnet(&client, &detail_url, detail_sel.as_deref(), detail_fallback.as_deref(), auth_cookie.as_deref()).await {
-                        Ok(m) => m,
-                        Err(_) => return None,
+                    // torrent_file mode's "detail" page is the row's
+                    // download link resolved to an absolute URL — no
+                    // detail-page fetch needed (unlike magnet mode's
+                    // DetailUrl, which fetches a details page to find a
+                    // separate magnet selector on it), since the href
+                    // itself already IS the thing we want to store.
+                    if is_torrent_file_mode {
+                        detail_url
+                    } else {
+                        match fetch_detail_magnet(&client, &detail_url, detail_sel.as_deref(), detail_fallback.as_deref(), auth_cookie.as_deref()).await {
+                            Ok(m) => m,
+                            Err(_) => return None,
+                        }
                     }
                 }
             };
-            if !magnet.starts_with("magnet:") { return None; }
 
             let mut r = TorrentResult {
                 title:  meta.title,
-                magnet,
                 size:   meta.size,
                 seeds:  meta.seeds,
                 peers:  meta.peers,
                 source: String::new(), // filled in by caller with display_name
                 ..Default::default()
             };
+
+            if is_torrent_file_mode {
+                // Absolutize a listing-relative href the same way the
+                // DetailUrl branch above does for a bare path, since
+                // magnet_location=="listing" torrent_file rows never go
+                // through the detail_url absolutize step.
+                let absolute = if resolved_url.starts_with("http") {
+                    resolved_url
+                } else {
+                    format!("{base_mirror}{resolved_url}")
+                };
+                r.torrent_file_url = Some(absolute);
+                r.requires_torrent_auth = requires_auth;
+            } else {
+                if !resolved_url.starts_with("magnet:") { return None; }
+                r.magnet = resolved_url;
+            }
+
             r.parse_tags();
             if let Some(cat) = meta.category {
                 fold_category_hint(&mut r, &cat);
@@ -239,8 +292,14 @@ async fn parse_html(
     let display_name = config.display_name.clone();
     for r in &mut results {
         r.source = display_name.clone();
+        // Only needed when the app has to look up a cookie to fetch
+        // torrent_file_url later — see TorrentResult::site_id's doc
+        // comment. Left empty for ordinary magnet results so the JSON
+        // payload doesn't carry a meaningless id for the common case.
+        if r.requires_torrent_auth {
+            r.site_id = site_id.to_string();
+        }
     }
-    let _ = site_id; // reserved for future per-site logging/metrics
 
     Ok(results)
 }
@@ -357,6 +416,9 @@ fn extract_querystring_param(href: &str, param: &str) -> Option<String> {
 
 // ── HTTP helpers ─────────────────────────────────────────────────────────────
 
+/// Always GET — used for detail-page fetches (fetch_detail_magnet), which
+/// are per-row href lookups and never templated search requests, so they
+/// never need the POST-body path below.
 async fn get_html(
     client:  &reqwest::Client,
     url:     &str,
@@ -373,10 +435,37 @@ async fn get_html(
     Ok(resp.text().await?)
 }
 
+/// Search-request fetch — GET or POST depending on `body`. `Some(body)`
+/// sends it as a POST with Content-Type: application/x-www-form-urlencoded
+/// (every Cardigann POST search body observed so far is plain
+/// form-encoded); `None` sends a plain GET, same as before this existed.
+async fn fetch_search_page(
+    client:  &reqwest::Client,
+    url:     &str,
+    body:    Option<&str>,
+    headers: &std::collections::HashMap<String, String>,
+) -> Result<String> {
+    let mut req = match body {
+        Some(b) => client.post(url)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(b.to_string()),
+        None => client.get(url),
+    };
+    for (k, v) in headers {
+        req = req.header(k.as_str(), v.as_str());
+    }
+    let resp = req.send().await?;
+    if !resp.status().is_success() {
+        anyhow::bail!("HTTP {} for {url}", resp.status());
+    }
+    Ok(resp.text().await?)
+}
+
 async fn get_html_with_fallback(
     client:      &reqwest::Client,
     config:      &SiteConfig,
     path:        &str,
+    body:        Option<&str>,
     auth_cookie: Option<&str>,
 ) -> Result<String> {
     // Merge the site's static config headers with the runtime auth
@@ -391,7 +480,7 @@ async fn get_html_with_fallback(
 
     for mirror in &config.mirrors {
         let url = format!("{mirror}{path}");
-        match get_html(client, &url, &headers).await {
+        match fetch_search_page(client, &url, body, &headers).await {
             Ok(html) => return Ok(html),
             Err(e) => log::warn!("[{}] mirror {mirror} failed: {e}", config.display_name),
         }

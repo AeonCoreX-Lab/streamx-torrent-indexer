@@ -1,7 +1,7 @@
 // crate/src/registry.rs
 //
 // Assembles one IndexerRegistry from the individual per-site JSON files
-// under sources/verified/ and sources/community/.
+// under sources/verified/, sources/community/, and sources/private/.
 //
 // Two ways to consume this crate:
 //
@@ -18,12 +18,16 @@
 //      see tools/). StreamX Ultra tries this first and falls back to
 //      load_embedded() on failure — see its indexer/config/loader.rs.
 //
-// verified/ vs community/: both are merged into the same map. A file in
-// community/ that hasn't been promoted yet is still fully usable — the
-// split exists for review workflow (see docs/CONTRIBUTING.md), not for
-// gating functionality. If both directories somehow define the same
-// `id` (shouldn't happen — CI's validator rejects duplicate ids across
-// the two directories in the same PR), verified/ wins.
+// verified/ vs community/ vs private/: all three are merged into the
+// same map. A file in community/ that hasn't been promoted yet is
+// still fully usable — the verified/community split exists for review
+// workflow (see docs/CONTRIBUTING.md), not for gating functionality.
+// private/ is a third, orthogonal split — purely organizational (see
+// build.rs's doc comment) — every site in it requires request.auth. If
+// the same `id` somehow appears in more than one directory (shouldn't
+// happen — CI's validator rejects duplicate ids across directories in
+// the same PR), verified/ wins over community/, which wins over
+// private/.
 
 // pub use, not a plain use: dispatch.rs and engine.rs both write
 // `use crate::registry::IndexerRegistry;`, and lib.rs's own doc example
@@ -57,6 +61,7 @@ pub enum RegistryError {
 pub fn build_from_files(
     verified: &[(&str, &str)],
     community: &[(&str, &str)],
+    private: &[(&str, &str)],
     special_sites_json: &str,
 ) -> Result<IndexerRegistry, RegistryError> {
     let mut sites: HashMap<String, SiteConfig> = HashMap::new();
@@ -76,6 +81,18 @@ pub fn build_from_files(
         if sites.contains_key(&cfg.id) {
             // verified/ already claimed this id — verified wins, but
             // this should have been caught by CI before merge.
+            continue;
+        }
+        sites.insert(cfg.id.clone(), cfg);
+    }
+    for (file, content) in private {
+        let cfg: SiteConfig = serde_json::from_str(content).map_err(|e| RegistryError::Parse {
+            file: file.to_string(),
+            source: e,
+        })?;
+        if sites.contains_key(&cfg.id) {
+            // Same last-writer-loses rule as community/ above — verified/
+            // and community/ both take priority, should be caught by CI.
             continue;
         }
         sites.insert(cfg.id.clone(), cfg);
@@ -105,6 +122,6 @@ include!(concat!(env!("OUT_DIR"), "/embedded_sources.rs"));
 /// mean build.rs and this loader disagree on the file list, which is a
 /// crate bug, not a data problem).
 pub fn load_embedded() -> IndexerRegistry {
-    build_from_files(EMBEDDED_VERIFIED, EMBEDDED_COMMUNITY, EMBEDDED_SPECIAL_SITES)
+    build_from_files(EMBEDDED_VERIFIED, EMBEDDED_COMMUNITY, EMBEDDED_PRIVATE, EMBEDDED_SPECIAL_SITES)
         .expect("embedded sources/ must always parse — this is a crate bug, please report it")
 }

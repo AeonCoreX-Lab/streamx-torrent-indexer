@@ -3,7 +3,8 @@
 Modular, config-driven torrent indexer engine for
 [StreamX Ultra](https://github.com/AeonCoreX-Lab/streamx-ultra). Every
 site is a plain JSON file, not code — adding a source is a PR, not a
-release.
+release. Supports both anonymous public sites and private trackers
+that require a per-user login (see "Private trackers" below).
 
 ## Why this exists
 
@@ -50,8 +51,8 @@ crate/               Rust library (streamx-indexer) — the actual scraping engi
   src/schema.rs         canonical types — the JSON shape is generated FROM these
   src/registry.rs       merges sources/ into one IndexerRegistry (embedded or runtime-fetched)
   src/engine.rs          search_all / search_dubbed / search_drama / search_anime_* etc.
-  src/generic_html.rs    generic CSS-selector-driven scraper
-  src/generic_json.rs    generic JSON-API-driven scraper
+  src/generic_html.rs    generic CSS-selector-driven scraper (GET or POST search, magnet or .torrent-file results)
+  src/generic_json.rs    generic JSON-API-driven scraper (GET or POST search)
   src/special/           bespoke scrapers for sites too irregular for the generic engine
   build.rs               auto-discovers sources/**/*.json at compile time — no manifest to edit
 
@@ -60,10 +61,11 @@ schema/source.schema.json   JSON Schema for one source file (editor autocomplete
 sources/
   verified/*.json     sites maintained/blessed by AeonCoreX-Lab — ship in every release
   community/*.json     sites contributed by anyone — fully functional once CI passes
+  private/*.json        sites that require a per-user login (private trackers) — see "Private trackers" below
   special-sites.json   mirror lists for the crate::special sites (kdrama, nyaa, tokyotosho, eztvco)
 
 tools/
-  validator/          CI tool — schema check + live selector/domain smoke-test
+  validator/          CI tool — schema check + live selector/domain smoke-test (GET and POST search both supported)
   jackett-sync/        scheduled tool — syncs mirrors against upstream Jackett YAML automatically
   cli/                  misc maintenance CLI (assembles dist/registry.json for hosting)
 
@@ -73,16 +75,64 @@ tools/
   release-registry.yml    runs daily, auto-cuts a date-based GitHub Release when sources/ data actually changed
 
 docs/
-  CONTRIBUTING.md       how to add a source (JSON, not YAML)
+  CONTRIBUTING.md       how to add a source (JSON, not YAML) — public sites and private trackers both
   CONSUMING.md           how StreamX Ultra (or anything else) pulls this crate in
 ```
+
+## Capabilities
+
+- **Two response formats**: `kind: "html"` (CSS-selector scraping) or
+  `kind: "json"` (JSON-API sites), same as before.
+- **Two search HTTP methods**: `search_method: "get"` (default, query
+  string built from `search_path`) or `"post"` (form-encoded body from
+  `search_body`) — added to support sites (mostly private trackers)
+  whose search endpoint only accepts a POST, like Cardigann's own
+  `method: post` search blocks.
+- **Two result-download shapes**: a real `magnet:` URI (the default,
+  every public source), or `download_type: "torrent_file"` for sites
+  that only expose an authenticated `.torrent` file link on their
+  listing page instead — the norm for private trackers, since that
+  download hit is how they track ratio/membership. See
+  `TorrentResult::torrent_file_url` / `requires_torrent_auth` in
+  `crate/src/types.rs`; the consuming app is responsible for fetching
+  that URL with the site's cookie attached and handing the resulting
+  bytes to its torrent client instead of a magnet.
+- **Optional per-site cookie auth** (`request.auth`, `method: "cookie"`)
+  for private trackers — the schema only ever describes *that* a site
+  needs a cookie and *how to check* one still works
+  (`login_check_path`/`login_check_selector`); the actual per-user
+  cookie value is supplied by the consuming app at search time via
+  `AuthProvider` (see `crate/src/dispatch.rs`) and is never stored in
+  this repo. How the app itself obtains that cookie (e.g. an in-app
+  WebView login) is entirely up to the app — this crate has no opinion
+  on it.
+
+## Private trackers
+
+`sources/private/` holds sites whose `request.auth` is set — same
+merge/validation rules as `verified/`/`community/`, kept in a separate
+folder purely so it's obvious at a glance which sites need a login
+before they'll return results. A private tracker with no cookie
+supplied for it still gets searched like any other site, just without
+a `Cookie` header attached — this normally comes back as zero results
+(or a login-page response) rather than an error, so one missing cookie
+never breaks the overall search. Public sites in the same search are
+completely unaffected either way — see `dispatch.rs`'s
+`requires_auth()` check, which only ever looks up a cookie for sites
+that actually declared they need one.
+
+Currently ported: **HD-Torrents**, **MySpleen**, **TorrentBD** (the
+latter exercising `search_method: "post"`). See
+[`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md#adding-a-private-tracker)
+for how to add another.
 
 ## Contributing a source
 
 See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md). Short version: copy
-an existing file in `sources/verified/`, adjust the selectors for your
-site, run `cargo run -- check --live --only <your-id>` from
-`tools/validator/`, open a PR.
+an existing file in `sources/verified/` (or `sources/private/` if the
+site needs a login), adjust the selectors for your site, run
+`cargo run -- check --live --only <your-id>` from `tools/validator/`,
+open a PR.
 
 ## Using this from another app
 

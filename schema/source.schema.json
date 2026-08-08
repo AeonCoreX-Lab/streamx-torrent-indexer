@@ -38,6 +38,16 @@
       "type": "string",
       "description": "Path appended to a mirror, with {query} substituted, e.g. \"/search/{query}/1/\"."
     },
+    "search_method": {
+      "type": "string",
+      "enum": ["get", "post"],
+      "default": "get",
+      "description": "HTTP method for the search request. Defaults to GET. Set to \"post\" for sites whose search endpoint expects a form-encoded POST body (see search_body) instead of query-string params."
+    },
+    "search_body": {
+      "type": "string",
+      "description": "POST body template, used only when search_method is \"post\". Same {query}/{page} substitution as search_path. Always sent as application/x-www-form-urlencoded."
+    },
     "imdb_path": { "type": ["string", "null"] },
     "pages": { "type": "integer", "minimum": 1, "default": 1 },
     "selectors": { "$ref": "#/definitions/htmlSelectors" },
@@ -146,7 +156,33 @@
           "additionalProperties": { "type": "string" }
         },
         "delay_ms": { "type": "integer", "minimum": 0, "default": 0 },
-        "min_seeds_for_detail_fetch": { "type": ["integer", "null"], "minimum": 0 }
+        "min_seeds_for_detail_fetch": { "type": ["integer", "null"], "minimum": 0 },
+        "auth": { "$ref": "#/definitions/authConfig" }
+      }
+    },
+    "authConfig": {
+      "type": "object",
+      "required": ["method"],
+      "additionalProperties": false,
+      "description": "Metadata describing what kind of session this private tracker needs. Never contains a secret — the actual per-user cookie lives only on-device (see crate/src/schema.rs's AuthConfig doc comment).",
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["cookie"],
+          "description": "The only auth method the engine implements — the app captures a real login's session cookie (via an in-app WebView) and supplies it at search time. Never a stored username/password."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Human-readable hint shown in the app's private-tracker login screen for this specific site."
+        },
+        "login_check_path": {
+          "type": ["string", "null"],
+          "description": "Path to fetch (relative to a mirror) to verify a stored cookie is still valid, before running an actual search with it."
+        },
+        "login_check_selector": {
+          "type": ["string", "null"],
+          "description": "CSS selector present only on login_check_path when genuinely logged in (e.g. a logout link) — used to confirm the cookie still works."
+        }
       }
     }
   }

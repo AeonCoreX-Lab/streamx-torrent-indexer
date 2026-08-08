@@ -217,7 +217,26 @@ async fn check_one(client: &reqwest::Client, cfg: &streamx_indexer::schema::Site
             .replace("{page}", "1")
     );
 
-    let search_req = apply_headers(client.get(&search_url), cfg);
+    // Mirrors the engine's own GET/POST branch (see generic_html.rs /
+    // generic_json.rs's fetch_search_page) — a POST-configured source
+    // validated with a plain GET would hit the wrong endpoint behavior
+    // and produce a false "selectors don't match" failure that has
+    // nothing to do with the selectors actually being wrong.
+    let search_body = if cfg.search_method == streamx_indexer::schema::SearchMethod::Post {
+        cfg.search_body.as_ref().map(|b| {
+            b.replace("{query}", &urlencoding::encode(TEST_QUERY))
+                .replace("{page}", "1")
+        })
+    } else {
+        None
+    };
+    let base_req = match &search_body {
+        Some(b) => client.post(&search_url)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(b.clone()),
+        None => client.get(&search_url),
+    };
+    let search_req = apply_headers(base_req, cfg);
     let body = match search_req.send().await {
         Ok(resp) if BLOCKED_STATUSES.contains(&resp.status().as_u16()) => {
             // The homepage let us through but the search endpoint

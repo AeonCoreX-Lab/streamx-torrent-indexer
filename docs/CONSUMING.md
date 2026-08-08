@@ -90,6 +90,71 @@ See `crate/src/engine.rs` for the full function list
 direct port of the app's original `indexer/engine.rs`, just registry-
 parameterized.
 
+## Handling private-tracker results
+
+Every `TorrentResult` from `search_all`/`search_dubbed`/etc. carries
+either a real `magnet` URI (the common case — every public source) or,
+for a `download_type: "torrent_file"` private-tracker source, an empty
+`magnet` plus `torrent_file_url` and `requires_torrent_auth: true`
+instead:
+
+```rust
+if !result.magnet.is_empty() {
+    // Normal path — hand the magnet URI straight to your torrent client.
+    my_torrent_client.add_magnet(&result.magnet);
+} else if let Some(url) = &result.torrent_file_url {
+    // Private-tracker path — fetch the .torrent file yourself, with the
+    // site's cookie attached if requires_torrent_auth is true, then add
+    // it from the downloaded bytes instead of a URL/magnet.
+    let cookie = if result.requires_torrent_auth {
+        my_cookie_store.get(&result.site_id) // your own storage, not this crate's
+    } else {
+        None
+    };
+    let bytes = fetch_with_optional_cookie(client, url, cookie.as_deref()).await?;
+    my_torrent_client.add_torrent_bytes(&bytes);
+}
+```
+
+This crate never fetches `torrent_file_url` itself — only the search
+request goes through `crate::dispatch`/`generic_html`/`generic_json`.
+Fetching the actual `.torrent` file (with the tracker's session cookie
+attached, since that download is what a private tracker uses to track
+ratio/membership) is entirely the consuming app's responsibility, same
+as this crate never touches your torrent client's actual piece-download
+logic either.
+
+## Supplying cookies for private trackers
+
+Implement `AuthProvider` (from `crate::dispatch`) and pass it to
+`engine::search_all`/etc. — the trait is a single method, and only
+sites whose `SiteConfig::requires_auth()` is true ever call it:
+
+```rust
+struct MyCookieProvider; // wraps whatever storage your app already has
+
+impl streamx_indexer::dispatch::AuthProvider for MyCookieProvider {
+    fn cookie_for(&self, site_id: &str) -> Option<String> {
+        my_cookie_store.get(site_id) // e.g. "uid=123; pass=abc..."
+    }
+}
+
+let auth = MyCookieProvider;
+let results = streamx_indexer::engine::search_all(&client, &registry, &query, &auth).await;
+```
+
+`crate::dispatch::NoAuth` is available as a zero-config default if your
+app doesn't support private trackers at all — every site with
+`requires_auth() == true` then simply searches unauthenticated
+(typically zero results for that one site, everything else in the
+search is unaffected).
+
+This crate has **no opinion on how you obtain a cookie** — where it
+comes from (an in-app WebView login, a manual paste field, whatever
+fits your app) and where you store it (encrypted-at-rest is strongly
+recommended, since a private-tracker cookie is tied to a real account)
+are both entirely up to the consuming app.
+
 ## Version pinning
 
 Until this crate is published anywhere, pin it as a git dependency in

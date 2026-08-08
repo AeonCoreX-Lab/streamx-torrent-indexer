@@ -4,16 +4,17 @@
 // so each tool stays focused. Currently one subcommand:
 //
 //   build-registry — assembles every file in sources/verified/ +
-//   sources/community/ + sources/special-sites.json into a single
-//   dist/registry.json. --version stamps the registry.updated field —
-//   .github/workflows/release-registry.yml always passes an explicit
-//   date-based version (e.g. "2026.07.31") so the file's own version
-//   field matches its GitHub Release tag; without --version it falls
-//   back to a UTC timestamp, which is fine for a local/manual run.
-//   This is the same merge logic crate::registry::load_embedded() uses
-//   internally, just writing the result to disk instead of baking it
-//   into the binary via include_str! — see docs/CONSUMING.md for how
-//   the app fetches the released copy at runtime.
+//   sources/community/ + sources/private/ + sources/special-sites.json
+//   into a single dist/registry.json. --version stamps the
+//   registry.updated field — .github/workflows/release-registry.yml
+//   always passes an explicit date-based version (e.g. "2026.07.31") so
+//   the file's own version field matches its GitHub Release tag;
+//   without --version it falls back to a UTC timestamp, which is fine
+//   for a local/manual run. This is the same merge logic
+//   crate::registry::load_embedded() uses internally, just writing the
+//   result to disk instead of baking it into the binary via
+//   include_str! — see docs/CONSUMING.md for how the app fetches the
+//   released copy at runtime.
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -58,14 +59,20 @@ fn build_registry(root: &PathBuf, out: &PathBuf, version: Option<String>) -> Res
 
     let mut verified_owned = Vec::new();
     let mut community_owned = Vec::new();
+    let mut private_owned = Vec::new();
     read_json_dir(&sources_dir.join("verified"), &mut verified_owned)?;
     read_json_dir(&sources_dir.join("community"), &mut community_owned)?;
+    read_json_dir(&sources_dir.join("private"), &mut private_owned)?;
 
     let verified: Vec<(&str, &str)> = verified_owned
         .iter()
         .map(|(name, content)| (name.as_str(), content.as_str()))
         .collect();
     let community: Vec<(&str, &str)> = community_owned
+        .iter()
+        .map(|(name, content)| (name.as_str(), content.as_str()))
+        .collect();
+    let private: Vec<(&str, &str)> = private_owned
         .iter()
         .map(|(name, content)| (name.as_str(), content.as_str()))
         .collect();
@@ -77,7 +84,7 @@ fn build_registry(root: &PathBuf, out: &PathBuf, version: Option<String>) -> Res
         "{}".to_string()
     };
 
-    let mut registry = streamx_indexer::registry::build_from_files(&verified, &community, &special_json)
+    let mut registry = streamx_indexer::registry::build_from_files(&verified, &community, &private, &special_json)
         .context("assembling registry from sources/")?;
     registry.updated = version.unwrap_or_else(now_rfc3339_ish);
 

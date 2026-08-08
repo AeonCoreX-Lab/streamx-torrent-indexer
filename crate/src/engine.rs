@@ -30,10 +30,20 @@
 // for sites whose SiteConfig declares it needs one. Nothing in this
 // file branches on site identity for auth purposes; a private tracker
 // added to the registry JSON with an `auth` block "just works" through
-// the exact same DEDICATED_IDS/generic-dispatch path every public site
-// already uses, with zero changes needed here. crate::dispatch::NoAuth
-// is available for callers (examples/, some validator runs) that don't
-// need private-tracker support at all.
+// the exact same dynamic-dispatch path every public site already uses,
+// with zero changes needed here. crate::dispatch::NoAuth is available
+// for callers (examples/, some validator runs) that don't need
+// private-tracker support at all.
+//
+// DYNAMIC SITE DISCOVERY (2026-07-25): the old `const DEDICATED_IDS:
+// [&str; 7]` hardcoded array is gone — every search_*() function below
+// now calls crate::dispatch::dynamic_site_ids() to get the current list
+// of enabled, non-excluded sites straight from the registry at call
+// time. See that function's doc comment for the full reasoning; short
+// version: adding a new site to sources/verified/ or sources/community/
+// used to ALSO require hand-editing this array before the new site
+// would ever actually get searched — a silent gap between "the site is
+// in the registry" and "the site is reachable" that this removes.
 
 use crate::dispatch::AuthProvider;
 use crate::registry::IndexerRegistry;
@@ -80,10 +90,32 @@ async fn with_1337x_fallback(
     merged
 }
 
-const DEDICATED_IDS: [&str; 7] =
-    ["tgx", "kat", "torrentdownload", "extratorrent", "therarbg", "tpb", "kat_ws"];
+/// The dynamic replacement for the old DEDICATED_IDS array — every
+/// enabled registry site EXCEPT x1337x, which every caller below
+/// queries separately via with_1337x_fallback() (only as a fallback
+/// when the dedicated sites came up short, not unconditionally
+/// alongside them — including it here would double-query it every time).
+fn dedicated_ids(registry: &IndexerRegistry) -> Vec<String> {
+    crate::dispatch::dynamic_site_ids(registry, &["x1337x"])
+}
 
-/// Search all sites for dubbed/dual-audio results matching `query`.
+/// Search all sites, same as search_all() — kept as a separate function
+/// only because callers already call it by this name (see
+/// IndexerNative.kt's nativeSearchDubbed and this crate's own doc
+/// comment history for why it existed). Simplified 2026-07-25: this
+/// used to filter results down to ones tagged is_dubbed() (falling back
+/// to untagged results with is_confirmed_dub forced to false if the tag
+/// filter produced zero hits), on the theory that a caller reaching for
+/// "search dubbed" specifically wanted ONLY dub-tagged results. That
+/// filtering is gone — every site's dub/dual-audio releases already
+/// surface naturally in a plain title search (the query text itself
+/// usually already contains "Hindi Dubbed" or similar when that's what
+/// the caller is looking for), and TorrentResult.audio_tags /
+/// is_confirmed_dub still carry the same per-result dub signal they
+/// always did — nothing here needs a second, narrower, occasionally-
+/// empty query to reveal them. The app's own UI is the right place to
+/// let a user filter an already-returned list by dub tag, not this
+/// engine deciding in advance what the "real" result set contains.
 ///
 /// imdb_id is deliberately NOT passed to the dedicated-site search
 /// below. Sites with an `imdb_path` (TGx, TheRARBG) will silently
@@ -100,28 +132,10 @@ pub async fn search_dubbed(
     _imdb_id: Option<&str>,
     auth: &dyn AuthProvider,
 ) -> Vec<TorrentResult> {
-    let raw = crate::dispatch::search_sites(client, registry, &DEDICATED_IDS, query, None, auth).await;
-
-    let tagged: Vec<TorrentResult> = raw.iter().cloned().filter(|r| r.is_dubbed()).collect();
-
-    let after_1337x = with_1337x_fallback(client, registry, query, tagged, auth).await;
-    let tagged_final: Vec<TorrentResult> =
-        after_1337x.iter().cloned().filter(|r| r.is_dubbed()).collect();
-
-    if !tagged_final.is_empty() {
-        return dedupe_and_sort(tagged_final);
-    }
-
-    log::info!(
-        "[search_dubbed] no dub-tagged results for \"{}\" — falling back to untagged matches",
-        query
-    );
-    let mut untagged = with_1337x_fallback(client, registry, query, raw, auth).await;
-    untagged.extend(search_eztvco(client, query).await);
-    for r in &mut untagged {
-        r.is_confirmed_dub = false;
-    }
-    dedupe_and_sort(untagged)
+    let mut merged = crate::dispatch::search_sites_dynamic(client, registry, &dedicated_ids(registry), query, None, auth).await;
+    merged.extend(search_eztvco(client, query).await);
+    let merged = with_1337x_fallback(client, registry, query, merged, auth).await;
+    dedupe_and_sort(merged)
 }
 
 /// Best-effort call into eztvco. Strips quality/dub-language noise
@@ -150,7 +164,7 @@ pub async fn search_all(
     query: &str,
     auth: &dyn AuthProvider,
 ) -> Vec<TorrentResult> {
-    let mut merged = crate::dispatch::search_sites(client, registry, &DEDICATED_IDS, query, None, auth).await;
+    let mut merged = crate::dispatch::search_sites_dynamic(client, registry, &dedicated_ids(registry), query, None, auth).await;
     merged.extend(search_eztvco(client, query).await);
     let merged = with_1337x_fallback(client, registry, query, merged, auth).await;
     dedupe_and_sort(merged)
@@ -220,7 +234,7 @@ pub async fn search_drama(
     query: &str,
     auth: &dyn AuthProvider,
 ) -> Vec<TorrentResult> {
-    let mut merged = crate::dispatch::search_sites(client, registry, &DEDICATED_IDS, query, None, auth).await;
+    let mut merged = crate::dispatch::search_sites_dynamic(client, registry, &dedicated_ids(registry), query, None, auth).await;
 
     if is_special_site_enabled(registry, "torrentsome") {
         let mirrors = special_mirrors(registry, "torrentsome");
@@ -237,15 +251,24 @@ pub async fn search_drama(
     dedupe_and_sort(merged)
 }
 
+/// Same content as search_drama() — kept as its own function only
+/// because app callers already call it by this name. Simplified
+/// 2026-07-25: this used to filter down to results tagged "English Dub"
+/// or "English Sub" only, on the theory that a caller reaching for
+/// "drama, English" specifically wanted just those. That filter is
+/// gone — every language's results now come back together, same
+/// reasoning as search_dubbed's simplification above (see that
+/// function's doc comment): audio_tags/is_confirmed_dub still carry the
+/// same per-result signal, client-side filtering is the right layer for
+/// a user-facing "only show me X" toggle, not this engine deciding in
+/// advance what's in the result set.
 pub async fn search_drama_english(
     client: &reqwest::Client,
     registry: &IndexerRegistry,
     query: &str,
     auth: &dyn AuthProvider,
 ) -> Vec<TorrentResult> {
-    let mut results = search_drama(client, registry, query, auth).await;
-    results.retain(|r| r.audio_tags.iter().any(|t| t == "English Dub" || t == "English Sub"));
-    results
+    search_drama(client, registry, query, auth).await
 }
 
 pub async fn search_drama_json(client: &reqwest::Client, registry: &IndexerRegistry, query: &str, auth: &dyn AuthProvider) -> String {
@@ -258,8 +281,8 @@ pub async fn search_drama_json(client: &reqwest::Client, registry: &IndexerRegis
 // Anime sources (nyaa, tokyotosho) are special-cased public sites with
 // no auth block — AuthProvider isn't threaded into their calls, since
 // there's nothing for them to look up. torrentdownload IS a generic
-// dispatch site though, so it takes `auth` like any DEDICATED_IDS site
-// would (currently always None in practice since torrentdownload has
+// dispatch site though, so it takes `auth` like any dynamically-dispatched
+// site would (currently always None in practice since torrentdownload has
 // no auth block either, but the call site stays consistent with every
 // other crate::dispatch::search_site call rather than special-casing
 // "this one never needs it").
@@ -287,14 +310,17 @@ pub async fn search_anime_english(
     }
 
     let merged = with_1337x_fallback(client, registry, query, merged, auth).await;
+    // Category-correctness filter only (2026-07-25: dropped the
+    // "|| audio_tags has English Dub/Sub" branch this used to have —
+    // see search_drama_english's doc comment above for why language
+    // filtering moved out of this engine entirely). This filter's
+    // remaining job is unrelated to language: 1337x is a general-
+    // purpose site, so its results for an anime query still need this
+    // title-contains-"anime" check to avoid non-anime results leaking
+    // in just because they matched the search text.
     let merged: Vec<TorrentResult> = merged
         .into_iter()
-        .filter(|r| {
-            let t = r.title.to_lowercase();
-            r.source != "1337x"
-                || t.contains("anime")
-                || r.audio_tags.iter().any(|tag| tag == "English Dub" || tag == "English Sub")
-        })
+        .filter(|r| r.source != "1337x" || r.title.to_lowercase().contains("anime"))
         .collect();
 
     dedupe_and_sort(merged)

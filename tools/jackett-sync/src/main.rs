@@ -8,9 +8,9 @@
 //
 // HOW IT WORKS
 // ────────────
-// For every source under sources/verified/ and sources/community/ (and
-// every entry in sources/special-sites.json) that has an
-// `origin.jackett_id` set, this:
+// For every source under sources/verified/, sources/community/, and
+// sources/private/ (and every entry in sources/special-sites.json)
+// that has an `origin.jackett_id` set, this:
 //
 //   1. Fetches that indexer's Cardigann YAML straight from Jackett's
 //      GitHub repo:
@@ -86,8 +86,8 @@ async fn main() -> Result<()> {
     let mut any_changed = false;
     let mut any_removed_upstream = false;
 
-    println!("{}", "── Syncing sources/verified + sources/community against Jackett ──".bold());
-    for dir_name in ["verified", "community"] {
+    println!("{}", "── Syncing sources/verified + sources/community + sources/private ──".bold());
+    for dir_name in ["verified", "community", "private"] {
         let dir = sources_dir.join(dir_name);
         if !dir.exists() {
             continue;

@@ -1,9 +1,17 @@
 name: Validate sources
 
-# Runs on every PR/push that touches a source file — schema-only (no
-# --live), fast, no third-party network dependency beyond what cargo
-# itself needs. This is what a community contributor's PR has to pass
-# before it can be merged, even into sources/community/.
+# Two jobs:
+#   schema-check              — always runs, no network beyond cargo's own
+#                                (offline JSON/schema validation). This is
+#                                what gates a community contributor's PR,
+#                                including into sources/private/.
+#   live-check-changed-sources — runs only for verified/community files
+#                                the PR actually touches; fetches each site
+#                                for real and confirms selectors resolve.
+#                                Deliberately skips sources/private/ (see
+#                                that job's own comment below) since CI has
+#                                no login session to test an authenticated
+#                                site with.
 on:
   pull_request:
     paths:
@@ -59,6 +67,17 @@ jobs:
   # hitting every site on every PR would be slow and noisy for
   # unrelated contributions (e.g. a docs-only PR that happens to also
   # touch schema/README wording).
+  #
+  # sources/private/ is deliberately EXCLUDED from the live check (see
+  # the "Determine changed source ids" step below) — every site there
+  # requires an authenticated cookie the CI runner doesn't have, so an
+  # unauthenticated --live run would just report a login-page response
+  # as a selector mismatch: a false failure that has nothing to do with
+  # whether the contributor's selectors are actually correct. Schema
+  # validation (the schema-check job above, which DOES cover
+  # sources/private/) is what actually gates a private-tracker PR;
+  # selector correctness for those is confirmed by human review instead
+  # — see docs/CONTRIBUTING.md's "Adding a private tracker" section.
   live-check-changed-sources:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
@@ -76,6 +95,10 @@ jobs:
                 | xargs -n1 basename 2>/dev/null | sed 's/\.json$//' | paste -sd, -)
           echo "ids=$IDS" >> "$GITHUB_OUTPUT"
 
+          PRIVATE_CHANGED=$(git diff --name-only "$BASE" "$HEAD" -- 'sources/private/*.json' \
+                | xargs -n1 basename 2>/dev/null | sed 's/\.json$//' | paste -sd, -)
+          echo "private_ids=$PRIVATE_CHANGED" >> "$GITHUB_OUTPUT"
+
       - name: Install Rust
         if: steps.changed.outputs.ids != ''
         uses: dtolnay/rust-toolchain@stable
@@ -91,3 +114,15 @@ jobs:
       - name: Live selector smoke-test (changed sources only)
         if: steps.changed.outputs.ids != ''
         run: ./target/release/validator check --root . --live --tolerate-blocked --only "${{ steps.changed.outputs.ids }}"
+
+      - name: Note on private-tracker files (no live check run)
+        if: steps.changed.outputs.private_ids != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "This PR touches `sources/private/` (`${{ steps.changed.outputs.private_ids }}`) — the live smoke-test doesn't run against these since CI has no login session for a private tracker. Schema validation already ran above; selector correctness for this file needs a manual confirmation from the contributor or a reviewer against a real logged-in session (see docs/CONTRIBUTING.md § Adding a private tracker)."
+            })

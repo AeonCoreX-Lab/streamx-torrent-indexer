@@ -121,9 +121,9 @@ jobs:
           body: |
             Automated daily registry release — see `.github/workflows/release-registry.yml`.
 
-            Contains every source under `sources/verified/` and
-            `sources/community/`, merged as of this run. Cut only
-            because the underlying site data changed since the
-            previous release (a version-only rebuild never triggers a
-            release on its own).
+            Contains every source under `sources/verified/`,
+            `sources/community/`, and `sources/private/`, merged as of
+            this run. Cut only because the underlying site data changed
+            since the previous release (a version-only rebuild never
+            triggers a release on its own).
           files: dist/registry.json

@@ -1,9 +1,9 @@
 // tools/validator/src/schema_check.rs
 //
 // Schema-level checks — no network. Runs against every *.json file
-// under sources/verified/ and sources/community/ (excluding
-// special-sites.json, which has its own tiny shape and is checked
-// separately by parse-only since it's not a SiteConfig).
+// under sources/verified/, sources/community/, and sources/private/
+// (excluding special-sites.json, which has its own tiny shape and is
+// checked separately by parse-only since it's not a SiteConfig).
 
 use anyhow::{Context, Result};
 use colored::Colorize;
@@ -33,7 +33,7 @@ pub fn run(
     let mut results = Vec::new();
     let mut seen_ids: HashMap<String, PathBuf> = HashMap::new();
 
-    for dir_name in ["verified", "community"] {
+    for dir_name in ["verified", "community", "private"] {
         let dir = sources_dir.join(dir_name);
         if !dir.exists() {
             continue;
