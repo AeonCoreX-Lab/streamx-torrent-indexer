@@ -10,16 +10,43 @@ and a flatter shape.
 You do **not** need to touch any Rust code to add a source. Drop a JSON
 file in the right folder, open a PR, and CI does the rest.
 
+**Read [Porting from Jackett](#1-porting-from-jackett-recommended)
+first** — it's the recommended, default way to add almost any source,
+public or private, and covers the large majority of contributions.
+[Writing a source from scratch](#1b-writing-a-source-from-scratch-only-if-no-jackett-definition-exists)
+is only for the rare case where no Jackett definition exists at all,
+and even then it still has to follow this repo's schema and existing
+file conventions exactly — it isn't a shortcut around either.
+
 This guide covers **public sites** first (the common case), then
 [private trackers](#adding-a-private-tracker) (sites that require a
 per-user login) further down — the file format is the same either way,
 private trackers just have a couple of extra fields.
 
-## 1. Pick a starting point
+## 1. Porting from Jackett (recommended)
 
-**If the site already has a Jackett YAML definition** (check
-[Jackett's Definitions folder](https://github.com/Jackett/Jackett/tree/master/src/Jackett.Common/Definitions)),
-port it — this is the common case and the fastest path:
+**Check [Jackett's Definitions folder](https://github.com/Jackett/Jackett/tree/master/src/Jackett.Common/Definitions)
+first, before writing anything from scratch.** Jackett ships 550+
+indexer definitions — most public trackers you'd think to add, and a
+large number of private ones too (TorrentLeech, HD-Torrents, MySpleen,
+TorrentBD, and hundreds more) already have a working, field-tested
+Cardigann YAML definition sitting there. **Porting one of those is the
+recommended, default way to add a source to this repo** — someone has
+already fought with that site's actual markup and login flow so you
+don't have to, and using the same `id` as Jackett's own definition is
+what lets `tools/jackett-sync` track that site's domain changes for
+you automatically, forever, with zero further effort on your part (see
+[What happens after merge](#what-happens-after-merge)).
+
+This is true for private trackers just as much as public ones —
+`sources/private/hdtorrents.json`, `sources/private/myspleen.json`,
+and `sources/private/torrentbd.json` were all ported directly from
+Jackett's own `hdtorrents.yml` / `myspleen.yml` / `torrentbd.yml`, not
+written from scratch. Before assuming a private tracker you want needs
+original research, search Jackett's Definitions folder for it by name
+— it's very likely already there.
+
+To port a definition:
 
 - `id:` → `id` (keep it identical to Jackett's own id where possible —
   this is what lets `jackett-sync` track domain changes for you
@@ -43,12 +70,39 @@ port it — this is the common case and the fastest path:
   the norm for private trackers and needs `download_type:
   "torrent_file"` plus a `request.auth` block; see
   [Adding a private tracker](#adding-a-private-tracker) below.
+- Check for a `login:` block — if present, this is a private tracker;
+  go straight to [Adding a private tracker](#adding-a-private-tracker)
+  once you've mapped the search/selector fields above.
 
-**If you're analyzing a site yourself** (no Jackett definition exists,
-or you found a better/faster site), that's also fully supported — set
-`origin.kind` to `"manual"` instead of `"jackett"` and skip
-`jackett_id`. You'll just be responsible for noticing if the site
-changes, since the sync bot has nothing to check it against.
+## 1b. Writing a source from scratch (only if no Jackett definition exists)
+
+If you've actually searched Jackett's Definitions folder and the site
+genuinely isn't there (or you're deliberately adding a better/faster
+alternative site Jackett doesn't cover), analyzing it yourself and
+writing selectors from scratch is supported — but it is **not** a
+license to invent your own structure or skip steps that porting would
+have forced you through anyway:
+
+- You **must** still match `schema/source.schema.json` exactly — CI's
+  schema-check job rejects anything that doesn't, with no exceptions
+  for a manually-written file.
+- You **must** open and read at least one already-ported file in
+  `sources/verified/` (public site) or `sources/private/` (login-gated
+  site) that's structurally similar to what you're adding, and follow
+  its shape — field naming, selector style, how magnet vs. torrent_file
+  is expressed — rather than designing your own conventions. This repo
+  has one consistent style across every source specifically so a
+  future contributor (or `jackett-sync`, or a reviewer) doesn't have to
+  learn a different shape per file.
+- Set `origin.kind` to `"manual"` instead of `"jackett"` and skip
+  `jackett_id`. You are then responsible for noticing if the site
+  changes — the sync bot has nothing to check a manual source against,
+  since there's no upstream Jackett definition for it to diff.
+
+If in doubt, prefer the Jackett-port path even if it means picking a
+slightly different but still-legitimate site that Jackett already
+covers, rather than hand-writing a definition for a site with no
+upstream reference.
 
 ## 2. Write the file
 
@@ -143,6 +197,16 @@ scheduled sync cycles — that move alone doesn't change how the app
 uses it; both directories are live in every release.
 
 ## Adding a private tracker
+
+Same rule as above: **check Jackett's Definitions folder for this
+tracker by name before writing anything** — Jackett's `login:` block
+being present in a definition is exactly the signal that a site
+belongs in `sources/private/` rather than `sources/community/`, and
+its `search:`/selector blocks port over the same way a public site's
+do (see [step 1](#1-porting-from-jackett-recommended) above). All
+three private trackers currently in this repo
+(`sources/private/hdtorrents.json`, `myspleen.json`, `torrentbd.json`)
+came from Jackett this way.
 
 A private tracker is a normal source file with two additions: a
 `request.auth` block, and (almost always) `download_type:

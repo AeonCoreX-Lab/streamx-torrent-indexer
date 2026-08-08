@@ -122,17 +122,38 @@ completely unaffected either way — see `dispatch.rs`'s
 that actually declared they need one.
 
 Currently ported: **HD-Torrents**, **MySpleen**, **TorrentBD** (the
-latter exercising `search_method: "post"`). See
-[`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md#adding-a-private-tracker)
-for how to add another.
+latter exercising `search_method: "post"`) — all three ported directly
+from Jackett's own definitions, which is the recommended way to add
+another. See
+[`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md#1-porting-from-jackett-recommended)
+for how.
 
 ## Contributing a source
 
-See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md). Short version: copy
-an existing file in `sources/verified/` (or `sources/private/` if the
-site needs a login), adjust the selectors for your site, run
-`cargo run -- check --live --only <your-id>` from `tools/validator/`,
-open a PR.
+**Before writing a new source from scratch, check
+[Jackett's own indexer definitions](https://github.com/Jackett/Jackett/tree/master/src/Jackett.Common/Definitions)
+first.** Jackett ships ~550+ definitions covering most public trackers
+and a large number of private ones — the overwhelming majority of any
+site you'd want to add already has a working Cardigann YAML definition
+sitting there, maintained by Jackett's own contributors. **Porting one
+of those is the recommended, default way to add a source here** — it's
+faster, and the selectors/login flow have already been fought over and
+proven against the real site by someone else.
+
+Only if a site genuinely has **no** Jackett definition (rare) should
+you analyze the site yourself and write selectors from scratch — and
+even then, you must still follow this repo's schema exactly
+(`schema/source.schema.json` — CI rejects anything that doesn't) and
+match the shape of an already-ported source in `sources/verified/` or
+`sources/private/` as your reference, rather than invent a different
+structure. See
+[`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md#1-porting-from-jackett-recommended)
+for the full walkthrough of both paths.
+
+Short version either way: copy an existing file in `sources/verified/`
+(or `sources/private/` if the site needs a login), adjust the
+selectors for your site, run `cargo run -- check --live --only
+<your-id>` from `tools/validator/`, open a PR.
 
 ## Using this from another app
 
