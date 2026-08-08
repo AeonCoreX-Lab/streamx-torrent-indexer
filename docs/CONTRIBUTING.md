@@ -361,3 +361,38 @@ sure which one you're looking at, open the mirror in a normal browser
 tab: a Cloudflare challenge page (even a "checking your browser..."
 interstitial) means it's blocked, not dead.
 
+## Changing the Rust code itself (not just a source file)
+
+Everything above is about `sources/*.json` — most contributions never
+touch a single line of Rust. If your PR *does* change `crate/` or
+`tools/` (e.g. adding a new field to `schema.rs`, changing
+`dispatch.rs`'s `AuthProvider` trait, touching the generic scrapers),
+a second, separate workflow applies:
+`.github/workflows/crate-ci.yml` runs `cargo check`/`build`/`test`
+against the whole workspace, plus a `consumer-smoke-test` job that
+builds a throwaway crate depending on your PR's commit the same way
+StreamX Ultra's own `Cargo.toml` does — so a genuine compile error
+gets caught here, in this repo's own CI, instead of surfacing later in
+the consuming app's build.
+
+Run the same checks locally before pushing, from the repo root (not
+inside `crate/` or `tools/validator/` — this is a Cargo workspace, so
+these commands cover every member crate at once):
+
+```bash
+cargo check --workspace --all-targets
+cargo build --workspace --all-targets
+cargo test --workspace --all-targets
+```
+
+If you're editing something that other repos depend on via a git
+dependency (like `AuthProvider`, or anything else `pub` in
+`crate/src/`), remember that changing it here doesn't automatically
+update anyone who already depends on this repo — a consuming project's
+own `Cargo.lock` still pins whatever commit it last resolved against
+until it runs `cargo update -p streamx-indexer` (or equivalent) itself.
+This isn't something a PR to this repo can fix on the consumer's
+behalf; it's worth a note in your PR description if you've changed a
+public API, so downstream maintainers know an update step is needed on
+their end.
+

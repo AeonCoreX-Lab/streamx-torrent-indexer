@@ -10,7 +10,7 @@ that require a per-user login (see "Private trackers" below).
 
 StreamX Ultra's torrent indexer used to be config-driven already
 (`indexer-config.default.json` bundled inside the app repo), but that
-setup had three problems this repo fixes:
+setup had several problems this repo fixes:
 
 1. **Not contributable.** The config lived inside the main app repo, so
    adding a source meant a PR against the whole Android app. This repo
@@ -43,6 +43,23 @@ setup had three problems this repo fixes:
    runtime (see `docs/CONSUMING.md`), so any merge — a community PR, a
    jackett-sync fix, a manual edit — reaches users on their next app
    launch, with nobody having to remember to publish anything.
+5. **Not actually compiled by CI.** `tools/validator` (used by
+   `validate-sources.yml`) only ever checks the `sources/*.json`
+   *data* — it never runs `rustc` against `crate/src/*.rs` itself, so a
+   genuine Rust-level mistake in the crate (a broken trait export, a
+   signature change that doesn't match its callers, anything the
+   compiler itself would catch) could merge to `main` with every
+   existing CI check green, and only surface later, downstream, when
+   Cargo tried to actually build this repo as a git dependency inside
+   someone else's project. That happened for real once — see
+   `.github/workflows/crate-ci.yml`'s own header comment for the exact
+   incident. `crate-ci.yml` now runs `cargo check`/`build`/`test` (and
+   clippy) against the whole workspace on every push/PR touching
+   `crate/` or `tools/`, plus a `consumer-smoke-test` job that builds a
+   throwaway crate depending on this repo's `HEAD` the same way
+   StreamX Ultra's own `Cargo.toml` does — the closest thing to a
+   guarantee that a green CI run actually means "this won't break the
+   app's build."
 
 ## Structure
 
@@ -70,7 +87,8 @@ tools/
   cli/                  misc maintenance CLI (assembles dist/registry.json for hosting)
 
 .github/workflows/
-  validate-sources.yml   runs on every PR touching sources/
+  validate-sources.yml   runs on every PR touching sources/ — schema/data only, never compiles Rust
+  crate-ci.yml             runs on every push/PR touching crate/ or tools/ — actually compiles + tests the Rust workspace, plus a consumer-smoke-test job that builds a throwaway crate against this repo the same way StreamX Ultra does
   jackett-sync.yml        runs daily, auto-opens a PR on domain drift
   release-registry.yml    runs daily, auto-cuts a date-based GitHub Release when sources/ data actually changed
 

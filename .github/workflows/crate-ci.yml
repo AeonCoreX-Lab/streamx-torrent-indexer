@@ -1,0 +1,117 @@
+name: Crate CI
+
+# Compiles and tests the actual Rust workspace (crate/ + every tool
+# under tools/) on every push/PR that touches Rust source — separate
+# from validate-sources.yml, which only ever checks the sources/*.json
+# DATA and never compiles a single line of Rust.
+#
+# This exists because of a real incident: a change to
+# crate/src/dispatch.rs (adding the AuthProvider trait) was pushed
+# without running `cargo build`/`cargo update` first, and validate-
+# sources.yml's schema-check job stayed green — it has no way to catch
+# a Rust-level mistake, since it never invokes rustc on crate/src/*.rs
+# itself, only on tools/validator's own already-compiled binary. The
+# breakage only surfaced downstream, in StreamX Ultra's own build,
+# when Cargo resolved this repo's `main` branch as a git dependency and
+# tried to actually compile it. This workflow closes that gap: any
+# commit that would break the consuming app's build now fails CI here
+# first, before it ever reaches main.
+#
+# The indexer crate itself (crate/) has NO Android/JNI-specific code —
+# that all lives in the app's own separate Rust crate, not this repo —
+# so a plain `cargo check`/`test` on a normal Linux runner is fully
+# representative; no Android NDK cross-compilation toolchain is needed
+# here to catch this class of bug.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crate/**"
+      - "tools/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/crate-ci.yml"
+  pull_request:
+    paths:
+      - "crate/**"
+      - "tools/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/crate-ci.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      # The single most important step in this workflow — this is
+      # exactly the command that would have caught the AuthProvider
+      # incident: a genuine E0405 "cannot find trait" compile error
+      # against the WHOLE workspace (crate/ + every tool), not just
+      # whichever member happened to be built by an unrelated task.
+      - name: cargo check (whole workspace)
+        run: cargo check --workspace --all-targets
+
+      - name: cargo build (whole workspace)
+        run: cargo build --workspace --all-targets
+
+      # Currently zero #[test] functions exist anywhere in this repo
+      # (crate/tests/ is present but empty) — that's fine, `cargo test`
+      # with no tests still exits 0, and this step is here so that the
+      # day someone DOES add a test, it's already wired into CI with no
+      # further workflow change needed. Not a placeholder to remove.
+      - name: cargo test (whole workspace)
+        run: cargo test --workspace --all-targets
+
+      - name: cargo clippy (whole workspace, warnings do not fail the build)
+        run: cargo clippy --workspace --all-targets -- -D warnings || true
+        # `|| true`: clippy lints are a code-quality signal, not a
+        # correctness gate the way check/build/test above are — a false
+        # positive or a stylistic lint shouldn't block a merge the same
+        # way a genuine compile error should. Its output still appears
+        # in the log for a human to look at.
+
+  # A minimal reproduction of exactly how StreamX Ultra actually
+  # consumes this repo: a throwaway crate with `streamx-indexer = {
+  # git = "...", branch = "main" }` as its only dependency, built fresh
+  # against whatever HEAD this workflow is running on. This is the
+  # ONLY job in this repo's CI that tests the crate the same way the
+  # real downstream consumer does — cargo check --workspace above
+  # tests this repo's own Cargo.lock, which can still diverge from
+  # what a fresh git-dependency resolution produces for someone else's
+  # Cargo.toml. Catches the exact failure mode from the AuthProvider
+  # incident directly, one level closer to "would this actually break
+  # StreamX Ultra's build."
+  consumer-smoke-test:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build a throwaway crate depending on this repo's HEAD
+        run: |
+          mkdir -p /tmp/consumer-check/src
+          cd /tmp/consumer-check
+          cat > Cargo.toml <<EOF
+          [package]
+          name = "consumer-check"
+          version = "0.0.0"
+          edition = "2021"
+
+          [dependencies]
+          streamx-indexer = { git = "https://github.com/${{ github.repository }}", rev = "${{ github.sha }}" }
+          EOF
+          echo 'fn main() { let _ = streamx_indexer::registry::load_embedded(); }' > src/main.rs
+          cargo build
