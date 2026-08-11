@@ -23,7 +23,21 @@ pub struct TorrentResult {
     /// see requires_torrent_auth below. The engine only ever fills this
     /// in for HtmlSelectors::download_type == "torrent_file"; it never
     /// invents one.
-    #[serde(default)]
+    //
+    // skip_serializing_if added 2026-08-10: without it, `None` still
+    // serializes as an explicit JSON `"torrent_file_url": null` (serde's
+    // default for Option<T>), which the Kotlin side's org.json parser
+    // (JSONObject.optString) reads back as the LITERAL STRING "null"
+    // rather than a missing key — org.json's optString only falls back
+    // to its default when the key is absent, not when it's present with
+    // a JSON null value. That silently turned every public-source
+    // result's torrentFileUrl into the string "null" instead of Kotlin
+    // null, which broke torrent playback entirely (see
+    // MovieLinkSelectionScreen.playTorrent() / IndexerNative.kt's
+    // parseResults() for the corresponding Kotlin-side fix). Omitting
+    // the key outright for None avoids relying on every JSON consumer
+    // getting this quirk right on their own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub torrent_file_url: Option<String>,
     /// True when torrent_file_url is set AND the site this came from
     /// requires an auth cookie (SiteConfig::requires_auth()) — meaning

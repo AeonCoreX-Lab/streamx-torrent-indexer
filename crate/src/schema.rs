@@ -369,9 +369,14 @@ pub struct AuthConfig {
     /// getting a confusing zero-results response instead of a clear
     /// "your cookie has expired" message. Checked once, against the
     /// site's own homepage/dashboard path — not run on every search.
-    #[serde(default)]
+    //
+    // skip_serializing_if added 2026-08-10 — same fix as
+    // TorrentResult::torrent_file_url, see that field's doc comment for
+    // the full org.json quirk explanation. Both of these fields go
+    // through the identical JNI → org.json.optString() path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub login_check_path: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub login_check_selector: Option<String>,
 }
 
