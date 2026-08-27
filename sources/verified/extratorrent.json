@@ -6,13 +6,12 @@
   "mirrors": [
     "https://extratorrent.st",
     "https://extratorrent.ninjaproxy1.com",
-    "https://extratorrent.proxyninja.org",
-    "https://extratorrent.proxyninja.net"
+    "https://extratorrent.proxyninja.org"
   ],
   "origin": {
     "jackett_id": "extratorrent-st",
     "kind": "jackett",
-    "last_verified": "2026-08-09T05:25:38Z"
+    "last_verified": "2026-08-27T15:18:14Z"
   },
   "pages": 1,
   "request": {

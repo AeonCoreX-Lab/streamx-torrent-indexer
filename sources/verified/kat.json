@@ -10,13 +10,12 @@
     "https://kickass.torrentbay.st",
     "https://kickass.torrentsbay.org",
     "https://kickasstorrents.ninjaproxy1.com",
-    "https://kickasstorrents.proxyninja.org",
-    "https://kickasstorrents.proxyninja.net"
+    "https://kickasstorrents.proxyninja.org"
   ],
   "origin": {
     "jackett_id": "kickasstorrents-to",
     "kind": "jackett",
-    "last_verified": "2026-08-09T05:25:38Z"
+    "last_verified": "2026-08-27T15:18:14Z"
   },
   "pages": 1,
   "request": {

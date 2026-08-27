@@ -6,12 +6,12 @@
       "https://nyaa.iss.ink",
       "https://nyaa.land",
       "https://nyaa.mom",
-      "https://nyaa.unblockninja.com"
+      "https://nyaa.media"
     ],
     "origin": {
       "jackett_id": "nyaasi",
       "kind": "jackett",
-      "last_verified": "2026-07-31T04:28:32Z"
+      "last_verified": "2026-08-27T15:18:15Z"
     }
   },
   "tokyotosho": {
@@ -30,23 +30,23 @@
   "torrentsome": {
     "enabled": true,
     "mirrors": [
-      "https://torrentsome257.com"
+      "https://torrentsome260.com"
     ],
     "origin": {
       "jackett_id": "torrentsome",
       "kind": "jackett",
-      "last_verified": "2026-08-08T04:14:19Z"
+      "last_verified": "2026-08-27T15:18:15Z"
     }
   },
   "torrenttip": {
     "enabled": true,
     "mirrors": [
-      "https://torrenttip238.top"
+      "https://torrenttip241.top"
     ],
     "origin": {
       "jackett_id": "torrenttip",
       "kind": "jackett",
-      "last_verified": "2026-08-08T04:14:19Z"
+      "last_verified": "2026-08-27T15:18:15Z"
     }
   }
 }
