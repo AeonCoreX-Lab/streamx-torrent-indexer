@@ -30,23 +30,23 @@
   "torrentsome": {
     "enabled": true,
     "mirrors": [
-      "https://torrentsome260.com"
+      "https://torrentsome266.com"
     ],
     "origin": {
       "jackett_id": "torrentsome",
       "kind": "jackett",
-      "last_verified": "2026-08-27T15:18:15Z"
+      "last_verified": "2026-10-03T09:54:52Z"
     }
   },
   "torrenttip": {
     "enabled": true,
     "mirrors": [
-      "https://torrenttip241.top"
+      "https://torrenttip246.top"
     ],
     "origin": {
       "jackett_id": "torrenttip",
       "kind": "jackett",
-      "last_verified": "2026-08-27T15:18:15Z"
+      "last_verified": "2026-10-03T09:54:52Z"
     }
   }
 }

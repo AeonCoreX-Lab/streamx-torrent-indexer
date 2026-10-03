@@ -15,16 +15,10 @@
   },
   "kind": "json",
   "mirrors": [
-    "https://apibay.org",
-    "https://apibay.li",
     "https://thepiratebay.org",
-    "https://thepiratebay.unblockninja.com",
     "https://thepiratebay.ninjaproxy1.com",
     "https://tpb.proxyninja.org",
-    "https://thepiratebay.proxyninja.net",
     "https://thepiratebay.torrentbay.st",
-    "https://tpb.skynetcloud.site",
-    "https://piratehaven.xyz",
     "https://mirrorbay.top",
     "https://thepiratebay0.org",
     "https://thepiratebay10.xyz",
@@ -36,18 +30,13 @@
     "https://piratebay.live",
     "https://piratebay.party",
     "https://thepiratebay.party",
-    "https://thepiratebaye.org",
     "https://thepiratebay.cloud",
-    "https://tpb-proxy.xyz",
-    "https://tpb.re",
-    "https://tpirbay.site",
-    "https://tpirbay.top",
-    "https://tpirbay.xyz"
+    "https://tpb.re"
   ],
   "origin": {
     "jackett_id": "thepiratebay",
     "kind": "jackett",
-    "last_verified": "2026-08-08T05:11:31Z"
+    "last_verified": "2026-10-03T09:54:51Z"
   },
   "pages": 1,
   "request": {
