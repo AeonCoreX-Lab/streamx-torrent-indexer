@@ -5,13 +5,13 @@
   "imdb_path": "/get-posts/keywords:{imdb_id}",
   "kind": "html",
   "mirrors": [
-    "https://torrentgalaxy.one",
+    "https://torrentgalaxy.online",
     "https://torrentgalaxy.info"
   ],
   "origin": {
     "jackett_id": "torrentgalaxyclone",
     "kind": "jackett",
-    "last_verified": "2026-08-27T15:18:14Z"
+    "last_verified": "2026-10-31T10:26:13Z"
   },
   "pages": 1,
   "request": {
