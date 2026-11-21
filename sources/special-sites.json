@@ -5,13 +5,13 @@
       "https://nyaa.si",
       "https://nyaa.iss.ink",
       "https://nyaa.land",
-      "https://nyaa.mom",
+      "https://nyaa.wiki",
       "https://nyaa.media"
     ],
     "origin": {
       "jackett_id": "nyaasi",
       "kind": "jackett",
-      "last_verified": "2026-08-27T15:18:15Z"
+      "last_verified": "2026-11-21T12:44:49Z"
     }
   },
   "tokyotosho": {
@@ -30,23 +30,23 @@
   "torrentsome": {
     "enabled": true,
     "mirrors": [
-      "https://torrentsome260.com"
+      "https://torrentsome273.com"
     ],
     "origin": {
       "jackett_id": "torrentsome",
       "kind": "jackett",
-      "last_verified": "2026-08-27T15:18:15Z"
+      "last_verified": "2026-11-21T12:44:49Z"
     }
   },
   "torrenttip": {
     "enabled": true,
     "mirrors": [
-      "https://torrenttip241.top"
+      "https://torrenttip253.top"
     ],
     "origin": {
       "jackett_id": "torrenttip",
       "kind": "jackett",
-      "last_verified": "2026-08-27T15:18:15Z"
+      "last_verified": "2026-11-21T12:44:49Z"
     }
   }
 }
